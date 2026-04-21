@@ -58,7 +58,7 @@ const TRENDING_MARKETS: MarketCard[] = [
   {
     id: 2,
     question: "Will Israel–Hamas ceasefire hold through end of May?",
-    questionHe: null,
+    questionHe: undefined,
     yesPrice: 41,
     noPrice: 59,
     volume: "$312,550",
