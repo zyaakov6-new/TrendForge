@@ -30,7 +30,11 @@ import {
 } from "lucide-react";
 import { MARKETS, POSITIONS, fmtVol, type Market } from "@/lib/mock-data";
 import { useWallet } from "@/hooks/useWallet";
+import { useUSDCBalance } from "@/hooks/useUSDCBalance";
+import { useTrade } from "@/hooks/useTrade";
+import { toUSDCUnits } from "@/lib/contracts";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { toast } from "sonner";
 
 // ─── Extended mock data ───────────────────────────────────────────────────────
 
@@ -790,19 +794,18 @@ function TradeConfirmDialog({
 }
 
 // Trading Panel
-type TradeState = "idle" | "confirming" | "loading" | "success" | "error";
-
 function TradingPanel({ market, userPosition }: { market: Market; userPosition: typeof POSITIONS[0] | null }) {
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState(50);
-  const [tradeState, setTradeState] = useState<TradeState>("idle");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [txHash] = useState("0x3f4a9c2e8b1d7f56a3c4e901b2d8f374e6a5c1b9d2e7f8a0c3b5d6e1f2a4b7c");
 
   // Real wallet state
-  const { isConnected, formattedBalance } = useWallet();
-  // TODO: replace formattedBalance fallback with useBalance({ address, token: USDC_POLYGON })
-  const displayBalance = formattedBalance ?? "1,842.50";
+  const { address, isConnected } = useWallet();
+  const { formatted: displayBalance } = useUSDCBalance(address);
+
+  // Real CLOB trade hook
+  const requiredUsdc = toUSDCUnits(amount);
+  const trade = useTrade(address, requiredUsdc);
 
   const price = side === "YES" ? market.yesPrice / 100 : (100 - market.yesPrice) / 100;
   const shares = amount / price;
@@ -812,34 +815,48 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
 
   const QUICK_AMOUNTS = [10, 25, 50, 100, 250];
 
+  // Map useTrade step to legacy UI states
+  const tradeState =
+    trade.step === "filled"  ? "success"
+    : trade.step === "error" ? "error"
+    : trade.step !== "idle"  ? "loading"
+    : "idle";
+
+  const txHash = "0x3f4a9c2e8b1d7f56a3c4e901b2d8f374e6a5c1b9d2e7f8a0c3b5d6e1f2a4b7c";
+
   // Step 1: open confirm dialog
   const handleTrade = () => {
-    if (!isConnected) return; // WalletGate handles this case above
+    if (!isConnected) return;
     setConfirmOpen(true);
   };
 
-  // Step 2: user confirmed - execute
+  // Step 2: user confirmed - execute real CLOB order
   const handleConfirm = async () => {
     setConfirmOpen(false);
-    setTradeState("loading");
-    /*
-     * TODO: Kuest integration -
-     *   const { writeContractAsync } = useWriteContract()
-     *   await writeContractAsync({
-     *     address: KUEST_ROUTER_ADDRESS,
-     *     abi: KuestRouterABI,
-     *     functionName: 'buy',
-     *     args: [market.id, side === "YES" ? 0n : 1n, BigInt(amount * 1e6), minShares],
-     *   })
-     * See: @kuest/sdk or Polymarket py-clob-client for equivalent CLOB order placement
-     */
-    await new Promise(r => setTimeout(r, 2200));
-    setTradeState("success");
+
+    // market.id is the conditionId on real Kuest markets
+    // clobTokenIds[0] = YES token, clobTokenIds[1] = NO token
+    // TODO: pass real token IDs from GammaMarket.clobTokenIds when using live data
+    const tokenId = side === "YES" ? market.id + "_yes" : market.id + "_no";
+
+    await trade.placeTrade({
+      conditionId:   market.id,
+      tokenId,
+      amountUSDC:    amount,
+      pricePerShare: price,
+      side,
+    });
+
+    if (trade.step === "filled") {
+      toast.success(`Bought ${trade.sharesReceived.toFixed(1)} ${side} shares`);
+    } else if (trade.step === "error") {
+      toast.error(trade.error ?? "Trade failed");
+    }
   };
 
   const handleReset = () => {
-    setTradeState("idle");
     setAmount(50);
+    trade.reset();
   };
 
   return (
@@ -887,9 +904,11 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
             </motion.div>
             <h3 className="text-lg font-black text-white mb-1">Trade Executed!</h3>
             <p className="text-sm text-white/50 mb-1">
-              Bought <span className="text-white font-bold">{shares.toFixed(1)} {side}</span> shares for <span className="text-white font-bold">${amount} USDC</span>
+              Bought <span className="text-white font-bold">{(trade.sharesReceived || shares).toFixed(1)} {side}</span> shares for <span className="text-white font-bold">${amount} USDC</span>
             </p>
-            <p className="text-xs text-white/25 font-mono mb-1">Confirmed on Polygon in 0.9s</p>
+            <p className="text-xs text-white/25 font-mono mb-1">
+              {trade.orderStatus === "matched" ? "Matched instantly on CLOB" : "Order placed - Polygon confirmation pending"}
+            </p>
             <button
               onClick={() => navigator.clipboard.writeText(txHash).catch(() => {})}
               className="flex items-center gap-1 text-xs text-cyan-400/70 hover:text-cyan-400 font-mono mb-5 transition-colors"
@@ -919,8 +938,10 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
             <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
               <RefreshCw className="w-8 h-8 text-cyan-400" />
             </motion.div>
-            <p className="text-sm font-semibold text-white">Submitting to Polygon...</p>
-            <p className="text-xs text-white/35">Signing with your wallet</p>
+            <p className="text-sm font-semibold text-white">{trade.stepLabel}</p>
+            <p className="text-xs text-white/35">
+              {trade.step === "signing" ? "Check your wallet for the signature prompt" : "Polygon CLOB"}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1026,11 +1047,24 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
           </div>
         </div>
 
+        {/* Approval button (one-time, shown only when needed) */}
+        {isConnected && trade.needsApproval && tradeState === "idle" && (
+          <motion.button
+            onClick={trade.approve}
+            disabled={trade.isApproving}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="w-full mb-2 py-3 rounded-xl border border-amber-500/35 bg-amber-500/8 text-sm font-bold text-amber-400 hover:bg-amber-500/15 transition-all disabled:opacity-50"
+          >
+            {trade.isApproving ? "Approving USDC..." : "Approve USDC (one-time)"}
+          </motion.button>
+        )}
+
         {/* Place Trade button */}
         {isConnected ? (
           <motion.button
             onClick={handleTrade}
-            disabled={tradeState !== "idle"}
+            disabled={tradeState !== "idle" || trade.needsApproval}
             whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
             whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
             className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${

@@ -24,6 +24,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { Toaster } from "sonner";
 import type { ReactNode } from "react";
 
 // Wagmi + RainbowKit config
@@ -81,7 +82,21 @@ export function Providers({ children }: { children: ReactNode }) {
             learnMoreUrl: "https://trendforge.app",
           }}
         >
-          <LanguageProvider>{children}</LanguageProvider>
+          <LanguageProvider>
+            {children}
+            <Toaster
+              theme="dark"
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: "#0a0a18",
+                  border:     "1px solid rgba(255,255,255,0.08)",
+                  color:      "#fff",
+                  fontFamily: "var(--font-display), sans-serif",
+                },
+              }}
+            />
+          </LanguageProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

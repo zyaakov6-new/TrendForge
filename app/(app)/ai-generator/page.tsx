@@ -13,7 +13,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { WalletGate } from "@/components/WalletGate";
+import { useWallet } from "@/hooks/useWallet";
+import { useCreateMarket } from "@/hooks/useCreateMarket";
 import {
   Sparkles,
   Flame,
@@ -257,10 +260,16 @@ function ResultCard({
   market,
   onPublish,
   onReset,
+  publishLabel,
+  isPublishing,
+  publishProgress,
 }: {
   market: GeneratedMarket;
   onPublish: () => void;
   onReset: () => void;
+  publishLabel?: string;
+  isPublishing?: boolean;
+  publishProgress?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState(market.question);
@@ -411,21 +420,44 @@ function ResultCard({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-3">
-        {/* TODO: Replace onClick with wagmi useContractWrite to Kuest MarketFactory */}
-        <button
-          onClick={onPublish}
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 hover:-translate-y-0.5 transition-all duration-200"
-        >
-          <Zap className="w-4 h-4" />
-          Publish to Polygon
-        </button>
-        <button
-          onClick={onReset}
-          className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-sm font-semibold text-white/45 hover:text-white hover:border-white/15 transition-all"
-        >
-          Regenerate
-        </button>
+      <div className="flex gap-3 flex-col">
+        {/* Progress bar - visible during on-chain publish */}
+        {isPublishing && (
+          <div className="h-1 rounded-full bg-white/8 overflow-hidden">
+            <motion.div
+              animate={{ width: `${publishProgress ?? 0}%` }}
+              transition={{ duration: 0.5 }}
+              className="h-full rounded-full bg-emerald-500"
+            />
+          </div>
+        )}
+        <div className="flex gap-3">
+          <button
+            onClick={onPublish}
+            disabled={isPublishing}
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-bold text-white hover:bg-emerald-400 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:translate-y-0"
+          >
+            {isPublishing ? (
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+                className="inline-block"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </motion.span>
+            ) : (
+              <Zap className="w-4 h-4" />
+            )}
+            {publishLabel ?? "Publish to Polygon"}
+          </button>
+          <button
+            onClick={onReset}
+            disabled={isPublishing}
+            className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-sm font-semibold text-white/45 hover:text-white hover:border-white/15 transition-all disabled:opacity-40"
+          >
+            Regenerate
+          </button>
+        </div>
       </div>
     </motion.div>
   );
@@ -522,6 +554,10 @@ export default function AIGeneratorPage() {
   const [placeholderIdx, setPlaceholderIdx] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Real wallet + on-chain market creation
+  const { address } = useWallet();
+  const createMarket = useCreateMarket(address);
+
   // Cycle placeholder suggestions
   useEffect(() => {
     const id = setInterval(
@@ -536,12 +572,12 @@ export default function AIGeneratorPage() {
     setGenState("loading");
     setLoadingStep(0);
 
-    // Simulate step-by-step Claude processing
-    // TODO: Replace with streaming SSE from POST /api/generate-market
+    // TODO: Replace simulation with real Claude API call:
+    //   POST /api/generate-market { topic }
+    //   Returns: { question, description, resolutionCriteria, yesPrice, ... }
+    //   Server route: app/api/generate-market/route.ts
     for (let i = 1; i <= LOADING_STEPS.length; i++) {
-      await new Promise((r) =>
-        setTimeout(r, 650 + Math.random() * 450)
-      );
+      await new Promise((r) => setTimeout(r, 650 + Math.random() * 450));
       setLoadingStep(i);
     }
     await new Promise((r) => setTimeout(r, 350));
@@ -549,18 +585,52 @@ export default function AIGeneratorPage() {
     setGenState("result");
   };
 
-  const handlePublish = () => {
-    // TODO: wagmi useContractWrite → Kuest MarketFactory.createMarket(...)
-    setGenState("published");
+  const handlePublish = async () => {
+    if (!generatedMarket) return;
+
+    // Parse resolve date to ISO string
+    const endDate = new Date(generatedMarket.resolveDate + " 2026").toISOString();
+
+    toast.loading("Publishing to Polygon...", { id: "publish" });
+
+    await createMarket.create({
+      question:           generatedMarket.question,
+      description:        `${generatedMarket.question} This market was auto-generated by TrendForge AI based on ${generatedMarket.xPostsAnalyzed.toLocaleString()} X posts with ${generatedMarket.sentimentBullish}% bullish sentiment.`,
+      resolutionCriteria: generatedMarket.criteria,
+      category:           generatedMarket.category,
+      endDate,
+      aiGenerated:        true,
+      initialLiquidityUSDC: 0, // set to e.g. 100 to seed liquidity automatically
+    });
+
+    if (createMarket.step === "error") {
+      toast.error(createMarket.error ?? "Transaction failed", { id: "publish" });
+    } else {
+      toast.success("Market is live on Polygon!", { id: "publish" });
+      setGenState("published");
+    }
   };
+
+  // Sync published state when createMarket completes
+  useEffect(() => {
+    if (createMarket.step === "complete" && genState === "result") {
+      setGenState("published");
+    }
+  }, [createMarket.step, genState]);
 
   const handleReset = () => {
     setTopic("");
     setGenState("idle");
     setGeneratedMarket(null);
     setLoadingStep(0);
+    createMarket.reset();
     setTimeout(() => textareaRef.current?.focus(), 100);
   };
+
+  // Show on-chain progress in the publish button label
+  const publishButtonLabel = createMarket.step !== "idle" && createMarket.step !== "complete" && createMarket.step !== "error"
+    ? createMarket.stepLabel
+    : "Approve & Publish to Polygon";
 
   return (
     <WalletGate
@@ -689,6 +759,13 @@ export default function AIGeneratorPage() {
                 market={generatedMarket}
                 onPublish={handlePublish}
                 onReset={handleReset}
+                publishLabel={publishButtonLabel}
+                isPublishing={
+                  createMarket.step !== "idle" &&
+                  createMarket.step !== "complete" &&
+                  createMarket.step !== "error"
+                }
+                publishProgress={createMarket.progress}
               />
             )}
             {genState === "published" && (
