@@ -25,13 +25,18 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
+const NAV_ITEMS: Array<{
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  ai?: boolean;
+}> = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/markets", icon: Compass, label: "Discover Markets" },
   { href: "/ai-generator", icon: Sparkles, label: "AI Generator", ai: true },
   { href: "/portfolio", icon: BarChart3, label: "Portfolio" },
   { href: "/trends", icon: TrendingUp, label: "Trends" },
-] as const;
+];
 
 const MOCK_WALLET = "0x3d4F...8Ab2";
 const MOCK_BALANCE = "1,842.50";
