@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -145,9 +146,11 @@ function PositionRow({
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white leading-snug line-clamp-1 mb-1.5">
-                {position.question}
-              </p>
+              <Link href={`/markets/${position.marketId}`} className="hover:text-cyan-300 transition-colors">
+                <p className="text-sm font-semibold text-white leading-snug line-clamp-1 mb-1.5">
+                  {position.question}
+                </p>
+              </Link>
               <div className="flex items-center gap-2">
                 <span
                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${catClass}`}

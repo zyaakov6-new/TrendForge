@@ -109,52 +109,54 @@ function MiniMarketCard({
   index: number;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.25 + index * 0.09 }}
-      className="group rounded-2xl border border-white/6 bg-white/[0.025] p-5 hover:border-cyan-500/25 hover:bg-white/[0.04] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
-    >
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-          {market.category}
-        </span>
-        {market.aiGenerated && (
-          <span className="inline-flex items-center gap-0.5 rounded-full border border-cyan-500/35 bg-cyan-500/8 px-2 py-0.5 text-[10px] font-bold uppercase text-cyan-400">
-            <Sparkles className="w-2.5 h-2.5" />
-            AI
+    <Link href={`/markets/${market.id}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 + index * 0.09 }}
+        className="group rounded-2xl border border-white/6 bg-white/[0.025] p-5 hover:border-cyan-500/25 hover:bg-white/[0.04] hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+      >
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
+            {market.category}
           </span>
-        )}
-      </div>
-
-      <p className="text-sm font-semibold text-white leading-snug mb-4 line-clamp-2 min-h-[40px]">
-        {market.question}
-      </p>
-
-      <div className="space-y-1.5 mb-4">
-        <div className="flex justify-between text-xs font-mono">
-          <span className="text-emerald-400">YES {market.yesPrice}¢</span>
-          <span className="text-rose-400">NO {100 - market.yesPrice}¢</span>
+          {market.aiGenerated && (
+            <span className="inline-flex items-center gap-0.5 rounded-full border border-cyan-500/35 bg-cyan-500/8 px-2 py-0.5 text-[10px] font-bold uppercase text-cyan-400">
+              <Sparkles className="w-2.5 h-2.5" />
+              AI
+            </span>
+          )}
         </div>
-        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${market.yesPrice}%` }}
-            transition={{ duration: 0.9, delay: 0.3 + index * 0.09 }}
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-          />
-        </div>
-      </div>
 
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-white/30 font-mono">
-          {fmtVol(market.volume)} · {market.daysLeft}d left
-        </span>
-        <span className="flex items-center gap-1 rounded-lg border border-cyan-500/25 bg-cyan-500/8 px-3 py-1 text-xs font-bold text-cyan-400 group-hover:bg-cyan-500/15 transition-colors">
-          Trade <ArrowRight className="w-3 h-3" />
-        </span>
-      </div>
-    </motion.div>
+        <p className="text-sm font-semibold text-white leading-snug mb-4 line-clamp-2 min-h-[40px] group-hover:text-cyan-100 transition-colors">
+          {market.question}
+        </p>
+
+        <div className="space-y-1.5 mb-4">
+          <div className="flex justify-between text-xs font-mono">
+            <span className="text-emerald-400">YES {market.yesPrice}¢</span>
+            <span className="text-rose-400">NO {100 - market.yesPrice}¢</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${market.yesPrice}%` }}
+              transition={{ duration: 0.9, delay: 0.3 + index * 0.09 }}
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/30 font-mono">
+            {fmtVol(market.volume)} · {market.daysLeft}d left
+          </span>
+          <span className="flex items-center gap-1 rounded-lg border border-cyan-500/25 bg-cyan-500/8 px-3 py-1 text-xs font-bold text-cyan-400 group-hover:bg-cyan-500/15 transition-colors">
+            Trade <ArrowRight className="w-3 h-3" />
+          </span>
+        </div>
+      </motion.div>
+    </Link>
   );
 }
 

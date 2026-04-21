@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -165,9 +166,11 @@ function MarketCard({
       </div>
 
       {/* Question */}
-      <p className="text-sm font-semibold text-white leading-snug mb-4 line-clamp-2 min-h-[40px]">
-        {market.question}
-      </p>
+      <Link href={`/markets/${market.id}`}>
+        <p className="text-sm font-semibold text-white leading-snug mb-4 line-clamp-2 min-h-[40px] hover:text-cyan-300 transition-colors cursor-pointer">
+          {market.question}
+        </p>
+      </Link>
 
       {/* Probability bar */}
       <div className="space-y-1.5 mb-4">
@@ -230,6 +233,13 @@ function MarketCard({
             >
               Buy NO
             </button>
+            <Link
+              href={`/markets/${market.id}`}
+              className="flex-shrink-0 flex items-center justify-center rounded-xl border border-white/10 bg-white/4 px-3 py-2.5 text-xs text-white/40 hover:text-white hover:border-white/20 transition-all"
+              title="View market detail"
+            >
+              <ArrowUpRight className="w-4 h-4" />
+            </Link>
           </motion.div>
         ) : (
           <motion.div
