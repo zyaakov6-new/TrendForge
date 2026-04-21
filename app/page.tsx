@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "framer-motion";
 import {
   Flame, Zap, TrendingUp, Globe, Shield, Layers,
@@ -323,9 +324,9 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
             {market.timeLeft}
           </span>
         </div>
-        <button className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-sm hover:shadow-cyan-500/20">
+        <Link href={`/markets/${market.id}`} className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-sm hover:shadow-cyan-500/20">
           Trade <ArrowRight className="w-3 h-3" />
-        </button>
+        </Link>
       </div>
     </motion.div>
   );
@@ -818,7 +819,7 @@ export default function TrendForgePage() {
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group">
             <div className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30">
               <Flame className="w-4 h-4 text-white" />
               <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -826,18 +827,23 @@ export default function TrendForgePage() {
             <span className="text-lg font-black tracking-tight text-white">
               Trend<span className="text-cyan-400">Forge</span>
             </span>
-          </a>
+          </Link>
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-1">
-            {["Markets", "Create", "Portfolio", "Trends"].map((item) => (
-              <a
-                key={item}
-                href="#"
+            {([
+              { label: "Markets", href: "/markets" },
+              { label: "Create", href: "/ai-generator" },
+              { label: "Portfolio", href: "/portfolio" },
+              { label: "Trends", href: "/dashboard" },
+            ] as const).map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
                 className="px-4 py-2 text-sm font-medium text-white/50 hover:text-white rounded-lg hover:bg-white/5 transition-all duration-200"
               >
-                {item}
-              </a>
+                {item.label}
+              </Link>
             ))}
           </div>
 
@@ -853,10 +859,10 @@ export default function TrendForgePage() {
             </button>
 
             {/* Connect Wallet */}
-            <button className="flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-md hover:shadow-cyan-500/20 transition-all">
+            <Link href="/dashboard" className="flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-md hover:shadow-cyan-500/20 transition-all">
               <Wallet className="w-4 h-4" />
               <span className="hidden sm:inline">Connect Wallet</span>
-            </button>
+            </Link>
           </div>
         </div>
       </motion.nav>
@@ -916,19 +922,19 @@ export default function TrendForgePage() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="flex flex-wrap gap-3 justify-center lg:justify-start"
             >
-              <a
-                href="#generator"
+              <Link
+                href="/ai-generator"
                 className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 py-3.5 text-base font-bold text-white shadow-xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/50 hover:-translate-y-0.5 transition-all duration-200"
               >
                 Try AI Market Generator
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </a>
-              <a
-                href="#markets"
+              </Link>
+              <Link
+                href="/markets"
                 className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-base font-bold text-white/80 hover:bg-white/10 hover:border-white/25 hover:-translate-y-0.5 transition-all duration-200"
               >
                 Browse Live Markets
-              </a>
+              </Link>
             </motion.div>
 
             {/* Stats mini-bar */}
@@ -1056,9 +1062,9 @@ export default function TrendForgePage() {
                 Live AI-Forged Markets
               </h2>
             </div>
-            <button className="flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors shrink-0">
+            <Link href="/markets" className="flex items-center gap-2 text-sm font-semibold text-cyan-400 hover:text-cyan-300 transition-colors shrink-0">
               View all markets <ArrowRight className="w-4 h-4" />
-            </button>
+            </Link>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1136,11 +1142,11 @@ export default function TrendForgePage() {
             </p>
 
             <div className="flex flex-wrap gap-4 justify-center">
-              <button className="group flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-8 py-4 text-lg font-black text-white shadow-2xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/50 hover:-translate-y-1 transition-all duration-300">
+              <Link href="/dashboard" className="group flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-8 py-4 text-lg font-black text-white shadow-2xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/50 hover:-translate-y-1 transition-all duration-300">
                 <Wallet className="w-5 h-5" />
                 Connect Wallet & Start
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-              </button>
+              </Link>
             </div>
 
             <p className="mt-5 text-xs text-white/25">
@@ -1171,15 +1177,30 @@ export default function TrendForgePage() {
             {[
               {
                 title: "Platform",
-                links: ["Markets", "Create Market", "Portfolio", "Leaderboard"],
+                links: [
+                  { label: "Markets", href: "/markets" },
+                  { label: "Create Market", href: "/ai-generator" },
+                  { label: "Portfolio", href: "/portfolio" },
+                  { label: "Dashboard", href: "/dashboard" },
+                ],
               },
               {
                 title: "Resources",
-                links: ["Docs", "API", "Blog", "Status"],
+                links: [
+                  { label: "Docs", href: "#" },
+                  { label: "API", href: "#" },
+                  { label: "Blog", href: "#" },
+                  { label: "Status", href: "#" },
+                ],
               },
               {
                 title: "Legal",
-                links: ["Terms", "Privacy", "Risk Disclosure", "Contact"],
+                links: [
+                  { label: "Terms", href: "#" },
+                  { label: "Privacy", href: "#" },
+                  { label: "Risk Disclosure", href: "#" },
+                  { label: "Contact", href: "#" },
+                ],
               },
             ].map((col) => (
               <div key={col.title}>
@@ -1188,10 +1209,10 @@ export default function TrendForgePage() {
                 </h4>
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
-                    <li key={link}>
-                      <a href="#" className="text-sm text-white/45 hover:text-white transition-colors">
-                        {link}
-                      </a>
+                    <li key={link.label}>
+                      <Link href={link.href} className="text-sm text-white/45 hover:text-white transition-colors">
+                        {link.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>
