@@ -77,7 +77,7 @@ function StatCard({ stat, index }: { stat: (typeof STATS)[0]; index: number }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className={`rounded-2xl border ${stat.border} bg-gradient-to-br ${stat.gradient} bg-[#070710] p-5`}
+      className={`rounded-2xl border ${stat.border} bg-[#070710] p-5`}
     >
       <div className="flex items-start justify-between mb-4">
         <div className={`p-2 rounded-lg bg-white/4`}>
@@ -142,7 +142,7 @@ function MiniMarketCard({
               initial={{ width: 0 }}
               animate={{ width: `${market.yesPrice}%` }}
               transition={{ duration: 0.9, delay: 0.3 + index * 0.09 }}
-              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+              className="h-full rounded-full bg-emerald-500"
             />
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function DashboardPage() {
         </div>
         <Link
           href="/ai-generator"
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 hover:-translate-y-0.5 transition-all whitespace-nowrap"
+          className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-black shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 hover:-translate-y-0.5 transition-all whitespace-nowrap"
         >
           <Sparkles className="w-4 h-4" />
           Forge New Market
@@ -366,7 +366,7 @@ export default function DashboardPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.55 }}
-        className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-500/5 to-cyan-500/5 p-5 md:p-6"
+        className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-5 md:p-6"
       >
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex-1">

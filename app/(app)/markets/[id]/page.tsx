@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * TrendForge — Market Detail / Trading Page
+ * TrendForge - Market Detail / Trading Page
  * Route: /markets/[id]
  *
- * Integration notes:
- *  TODO: useContractRead (wagmi) → Kuest MarketReader.getMarket(id)
- *  TODO: useContractWrite (wagmi) → Kuest Router.buy(marketId, outcome, amount)
- *  TODO: useBalance (wagmi) → live USDC balance check before trade
+ * Kuest integration points:
+ *  TODO: useReadContract  -> Kuest MarketReader.getMarket(questionId)
+ *  TODO: useReadContract  -> Kuest AMM.getOutcomePrices(questionId)
+ *  TODO: useWriteContract -> Kuest Router.buy(marketId, outcome, amountUSDC, minShares)
+ *  TODO: useWriteContract -> Kuest Router.sell(marketId, outcome, shares, minAmount)
+ *  TODO: useWatchContractEvent -> Kuest AMM.PriceUpdate for real-time prices
  *  TODO: Real price chart via Kuest WebSocket price feed
  *  TODO: Replace mock comments with on-chain or off-chain discussion API
+ *
+ *  Before first trade, check USDC allowance and call
+ *  USDC.approve(KUEST_ROUTER, amountUSDC) if needed.
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -21,9 +26,11 @@ import {
   Users, BarChart3, ChevronDown, ChevronUp, Brain, Twitter, CheckCircle,
   AlertCircle, Zap, MessageSquare, Share2, ExternalLink, RefreshCw,
   Activity, Info, Shield, Hash, ArrowUpRight, ArrowDownRight, Copy,
-  Wallet, X,
+  Wallet, X, Fuel,
 } from "lucide-react";
 import { MARKETS, POSITIONS, fmtVol, type Market } from "@/lib/mock-data";
+import { useWallet } from "@/hooks/useWallet";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 // ─── Extended mock data ───────────────────────────────────────────────────────
 
@@ -592,15 +599,210 @@ function ClaudeInsightsPanel({ analysis, defaultOpen = false }: { analysis: Clau
   );
 }
 
-// ─── Trading Panel ────────────────────────────────────────────────────────────
+// Inline connect button shown inside the trading panel when not connected
+function ConnectWalletButton() {
+  return (
+    <ConnectButton.Custom>
+      {({ openConnectModal }) => (
+        <motion.button
+          onClick={openConnectModal}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className="w-full py-4 rounded-xl border border-cyan-500/35 bg-cyan-500/8 text-base font-black text-cyan-400 hover:border-cyan-500/60 hover:bg-cyan-500/12 transition-all"
+        >
+          Connect Wallet to Trade
+        </motion.button>
+      )}
+    </ConnectButton.Custom>
+  );
+}
 
-type TradeState = "idle" | "loading" | "success" | "error";
+// Trade confirmation dialog
+function TradeConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  side,
+  amount,
+  shares,
+  potentialPayout,
+  price,
+  isLoading,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  side: "YES" | "NO";
+  amount: number;
+  shares: number;
+  potentialPayout: number;
+  price: number;
+  isLoading: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            onClick={onClose}
+          />
+
+          {/* Dialog */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.93, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.93, y: 16 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm mx-4"
+          >
+            <div className="rounded-2xl border border-white/10 bg-[#08080f] shadow-2xl overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/6">
+                <h3
+                  className="text-base font-black text-white"
+                  style={{ fontFamily: "var(--font-display), sans-serif" }}
+                >
+                  Confirm Trade
+                </h3>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Trade summary */}
+              <div className="p-5 space-y-3">
+                {/* Side badge */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">Direction</span>
+                  <span
+                    className={`rounded-full px-3 py-0.5 text-xs font-black border ${
+                      side === "YES"
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                    }`}
+                  >
+                    BUY {side}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">You pay</span>
+                  <span className="text-sm font-black font-mono text-white">
+                    ${amount.toFixed(2)} USDC
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">Price per share</span>
+                  <span className="text-sm font-mono text-white/70">
+                    {price.toFixed(3)} USDC
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">Shares received</span>
+                  <span className="text-sm font-mono text-white/70">
+                    {shares.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-white/6">
+                  <span className="text-xs text-white/40">Max payout (if wins)</span>
+                  <span className="text-base font-black font-mono text-emerald-400">
+                    ${potentialPayout.toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Gas estimate - placeholder */}
+                <div className="flex items-center justify-between rounded-lg bg-white/[0.025] border border-white/6 px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-xs text-white/30">
+                    <Fuel className="w-3 h-3" />
+                    Est. gas (Polygon)
+                  </span>
+                  <span className="text-xs font-mono text-white/30">
+                    ~$0.01 MATIC
+                    {/* TODO: useEstimateGas(Kuest Router.buy) for real gas estimate */}
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-white/20 leading-relaxed text-center pt-1">
+                  {/*
+                   * TODO: Kuest integration -
+                   * Call USDC.approve(KUEST_ROUTER, amount) first if allowance is insufficient,
+                   * then Kuest.Router.buy(marketId, outcomeIndex, amountUSDC, minShares).
+                   * See: py-clob-client equivalent or Kuest CLOB SDK docs.
+                   */}
+                  Transaction executes on Polygon. Irreversible once confirmed.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="px-5 pb-5 flex gap-3">
+                <button
+                  onClick={onClose}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold text-white/50 hover:text-white transition-all disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  onClick={onConfirm}
+                  disabled={isLoading}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-black text-white transition-all disabled:opacity-60 ${
+                    side === "YES"
+                      ? "bg-emerald-500 hover:bg-emerald-400"
+                      : "bg-rose-500 hover:bg-rose-400"
+                  }`}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.span
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
+                        className="inline-block"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </motion.span>
+                      Confirming...
+                    </span>
+                  ) : (
+                    `Confirm ${side}`
+                  )}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// Trading Panel
+type TradeState = "idle" | "confirming" | "loading" | "success" | "error";
 
 function TradingPanel({ market, userPosition }: { market: Market; userPosition: typeof POSITIONS[0] | null }) {
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState(50);
   const [tradeState, setTradeState] = useState<TradeState>("idle");
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [txHash] = useState("0x3f4a9c2e8b1d7f56a3c4e901b2d8f374e6a5c1b9d2e7f8a0c3b5d6e1f2a4b7c");
+
+  // Real wallet state
+  const { isConnected, formattedBalance } = useWallet();
+  // TODO: replace formattedBalance fallback with useBalance({ address, token: USDC_POLYGON })
+  const displayBalance = formattedBalance ?? "1,842.50";
 
   const price = side === "YES" ? market.yesPrice / 100 : (100 - market.yesPrice) / 100;
   const shares = amount / price;
@@ -610,9 +812,27 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
 
   const QUICK_AMOUNTS = [10, 25, 50, 100, 250];
 
-  // TODO: wagmi useContractWrite → Kuest Router.buy(market.id, side === "YES" ? 0 : 1, amountInUSDC)
-  const handleTrade = async () => {
+  // Step 1: open confirm dialog
+  const handleTrade = () => {
+    if (!isConnected) return; // WalletGate handles this case above
+    setConfirmOpen(true);
+  };
+
+  // Step 2: user confirmed - execute
+  const handleConfirm = async () => {
+    setConfirmOpen(false);
     setTradeState("loading");
+    /*
+     * TODO: Kuest integration -
+     *   const { writeContractAsync } = useWriteContract()
+     *   await writeContractAsync({
+     *     address: KUEST_ROUTER_ADDRESS,
+     *     abi: KuestRouterABI,
+     *     functionName: 'buy',
+     *     args: [market.id, side === "YES" ? 0n : 1n, BigInt(amount * 1e6), minShares],
+     *   })
+     * See: @kuest/sdk or Polymarket py-clob-client for equivalent CLOB order placement
+     */
     await new Promise(r => setTimeout(r, 2200));
     setTradeState("success");
   };
@@ -623,6 +843,20 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
   };
 
   return (
+    <>
+    {/* Confirmation dialog - rendered at root so it overlays everything */}
+    <TradeConfirmDialog
+      open={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      onConfirm={handleConfirm}
+      side={side}
+      amount={amount}
+      shares={shares}
+      potentialPayout={potentialPayout}
+      price={price}
+      isLoading={tradeState === "loading"}
+    />
+
     <div className="rounded-2xl border border-white/8 bg-white/[0.025] overflow-hidden sticky top-20">
       {/* Success state */}
       <AnimatePresence>
@@ -722,7 +956,9 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-bold uppercase tracking-widest text-white/35">Amount (USDC)</label>
-            <span className="text-xs text-white/25 font-mono">Balance: 1,842.50</span>
+            <span className="text-xs text-white/25 font-mono">
+              {isConnected ? `Balance: ${displayBalance}` : "Not connected"}
+            </span>
           </div>
           <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-3 mb-3">
             <DollarSign className="w-4 h-4 text-white/35 flex-shrink-0" />
@@ -791,22 +1027,26 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
         </div>
 
         {/* Place Trade button */}
-        <motion.button
-          onClick={handleTrade}
-          disabled={tradeState !== "idle"}
-          whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
-          whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
-          className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${
-            side === "YES"
-              ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-500 hover:shadow-emerald-500/40"
-              : "bg-gradient-to-r from-rose-500 to-pink-600 text-white shadow-xl shadow-rose-500/25 hover:from-rose-400 hover:to-pink-500 hover:shadow-rose-500/40"
-          } disabled:opacity-50`}
-        >
-          Buy {side} · ${amount} USDC
-        </motion.button>
+        {isConnected ? (
+          <motion.button
+            onClick={handleTrade}
+            disabled={tradeState !== "idle"}
+            whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
+            whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
+            className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${
+              side === "YES"
+                ? "bg-emerald-500 text-white hover:bg-emerald-400"
+                : "bg-rose-500 text-white hover:bg-rose-400"
+            } disabled:opacity-50`}
+          >
+            Buy {side} - ${amount} USDC
+          </motion.button>
+        ) : (
+          <ConnectWalletButton />
+        )}
 
         <p className="text-center text-[10px] text-white/20 mt-3">
-          Trades execute on Polygon · No KYC under $500
+          Trades execute on Polygon - no KYC under $500
         </p>
       </div>
 
@@ -830,16 +1070,17 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
                   </span>
                 );
               })()}
-              <p className="text-[10px] text-white/25 font-mono">Entry: {(userPosition.entryPrice * 100).toFixed(0)}¢</p>
+              <p className="text-[10px] text-white/25 font-mono">Entry: {(userPosition.entryPrice * 100).toFixed(0)}c</p>
             </div>
           </div>
         </div>
       )}
     </div>
+    </>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// Main Page
 
 type TabKey = "overview" | "orderbook" | "trades" | "comments";
 

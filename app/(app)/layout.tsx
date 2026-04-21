@@ -21,10 +21,17 @@ import {
   Settings,
   DollarSign,
   Zap,
+  AlertTriangle,
+  LogOut,
+  Copy,
+  Check,
 } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useDisconnect } from "wagmi";
+import { useWallet } from "@/hooks/useWallet";
+import { useLanguage } from "@/context/LanguageContext";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
+// Nav items
 const NAV_ITEMS: Array<{
   href: string;
   icon: React.ElementType;
@@ -38,11 +45,7 @@ const NAV_ITEMS: Array<{
   { href: "/trends", icon: TrendingUp, label: "Trends" },
 ];
 
-const MOCK_WALLET = "0x3d4F...8Ab2";
-const MOCK_BALANCE = "1,842.50";
-
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
-
+// Sidebar content (shared between desktop + mobile)
 function SidebarContent({
   collapsed,
   onToggle,
@@ -67,8 +70,8 @@ function SidebarContent({
           onClick={onNavClick}
           className="flex items-center gap-2.5 group"
         >
-          <div className="relative flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30 group-hover:shadow-cyan-500/50 transition-shadow">
-            <Flame className="w-4 h-4 text-white" />
+          <div className="relative flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500 shadow-lg shadow-cyan-500/30 group-hover:shadow-cyan-500/50 transition-shadow">
+            <Flame className="w-4 h-4 text-black" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -77,6 +80,7 @@ function SidebarContent({
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}
                 className="text-base font-black tracking-tight text-white whitespace-nowrap overflow-hidden"
+                style={{ fontFamily: "var(--font-display), sans-serif" }}
               >
                 Trend<span className="text-cyan-400">Forge</span>
               </motion.span>
@@ -94,7 +98,7 @@ function SidebarContent({
         )}
       </div>
 
-      {/* Nav */}
+      {/* Nav links */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map(({ href, icon: Icon, label, ai }) => {
           const active =
@@ -122,7 +126,11 @@ function SidebarContent({
               )}
               <Icon
                 className={`relative z-10 w-4 h-4 flex-shrink-0 ${
-                  active ? "text-cyan-400" : ai && !active ? "text-violet-400" : ""
+                  active
+                    ? "text-cyan-400"
+                    : ai && !active
+                    ? "text-violet-400"
+                    : ""
                 }`}
               />
               <AnimatePresence>
@@ -152,10 +160,10 @@ function SidebarContent({
         })}
       </nav>
 
-      {/* Bottom */}
+      {/* Bottom - settings */}
       <div className="px-2 py-3 border-t border-white/5">
         <Link
-          href="#"
+          href="/settings"
           onClick={onNavClick}
           title={collapsed ? "Settings" : undefined}
           className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/30 hover:text-white hover:bg-white/5 transition-all ${
@@ -199,7 +207,6 @@ function DesktopSidebar({
         onToggle={onToggle}
         onNavClick={() => {}}
       />
-      {/* Expand handle when collapsed */}
       {collapsed && (
         <button
           onClick={onToggle}
@@ -256,8 +263,132 @@ function MobileSidebar({
   );
 }
 
-// ─── Topbar ───────────────────────────────────────────────────────────────────
+// Wallet section - handles all three states: disconnected, wrong network, connected
+function WalletSection() {
+  const {
+    isConnected,
+    isConnecting,
+    isWrongNetwork,
+    isSwitchingChain,
+    switchToPolygon,
+    formattedBalance,
+    truncatedAddress,
+  } = useWallet();
+  const { disconnect } = useDisconnect();
+  const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
+  function copyAddress() {
+    if (!truncatedAddress) return;
+    navigator.clipboard.writeText(truncatedAddress).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  // Not connected - show connect button via RainbowKit Custom
+  if (!isConnected) {
+    return (
+      <ConnectButton.Custom>
+        {({ openConnectModal }) => (
+          <motion.button
+            onClick={openConnectModal}
+            disabled={isConnecting}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 rounded-lg border border-cyan-500/35 bg-cyan-500/8 px-3 py-1.5 text-xs font-bold text-cyan-400 hover:border-cyan-500/60 hover:bg-cyan-500/15 transition-all disabled:opacity-50"
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
+          </motion.button>
+        )}
+      </ConnectButton.Custom>
+    );
+  }
+
+  // Wrong network - prompt switch to Polygon
+  if (isWrongNetwork) {
+    return (
+      <motion.button
+        onClick={switchToPolygon}
+        disabled={isSwitchingChain}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className="flex items-center gap-2 rounded-lg border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs font-bold text-orange-400 hover:bg-orange-500/15 transition-all"
+      >
+        <AlertTriangle className="w-3.5 h-3.5" />
+        {isSwitchingChain ? "Switching..." : "Switch to Polygon"}
+      </motion.button>
+    );
+  }
+
+  // Connected - show balance + address with dropdown
+  return (
+    <div className="relative flex items-center gap-2">
+      {/* USDC balance */}
+      {formattedBalance !== null && (
+        <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
+          <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-xs font-bold text-emerald-400 font-mono">
+            {formattedBalance}
+          </span>
+          <span className="text-[10px] text-emerald-400/50 font-medium">
+            USDC
+          </span>
+        </div>
+      )}
+
+      {/* Address chip with dropdown */}
+      <button
+        onClick={() => setMenuOpen((o) => !o)}
+        className="hidden md:flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/60 hover:text-white hover:border-white/20 transition-all"
+      >
+        <div className="w-2 h-2 rounded-full bg-emerald-400" />
+        <span className="font-mono">{truncatedAddress}</span>
+      </button>
+
+      {/* Dropdown */}
+      <AnimatePresence>
+        {menuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full right-0 mt-2 w-48 rounded-xl border border-white/10 bg-[#0a0a18] shadow-xl z-50"
+            >
+              <button
+                onClick={() => { copyAddress(); setMenuOpen(false); }}
+                className="flex items-center gap-2.5 w-full px-4 py-3 text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors rounded-t-xl"
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                {copied ? "Copied!" : "Copy address"}
+              </button>
+              <div className="h-px bg-white/5" />
+              <button
+                onClick={() => { disconnect(); setMenuOpen(false); }}
+                className="flex items-center gap-2.5 w-full px-4 py-3 text-xs text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/5 transition-colors rounded-b-xl"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Disconnect
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// Page title map
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/markets": "Discover Markets",
@@ -268,12 +399,12 @@ const PAGE_TITLES: Record<string, string> = {
 
 function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const pathname = usePathname();
-  const [lang, setLang] = useState<"en" | "he">("en");
+  const { lang, toggleLang } = useLanguage();
   const title = PAGE_TITLES[pathname] ?? "TrendForge";
 
   return (
     <header className="sticky top-0 z-30 flex items-center h-14 px-4 md:px-5 border-b border-white/5 bg-[#03030a]/85 backdrop-blur-md flex-shrink-0">
-      {/* Mobile menu */}
+      {/* Mobile menu toggle */}
       <button
         onClick={onMenuClick}
         className="lg:hidden p-1.5 mr-3 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition-all"
@@ -282,54 +413,42 @@ function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
 
       {/* Page title */}
-      <span className="hidden sm:block text-sm font-bold text-white/70">
+      <span
+        className="hidden sm:block text-sm font-bold text-white/60"
+        style={{ fontFamily: "var(--font-display), sans-serif" }}
+      >
         {title}
       </span>
 
       <div className="ml-auto flex items-center gap-2">
-        {/* Language */}
+        {/* Language toggle */}
         <button
-          onClick={() => setLang((l) => (l === "en" ? "he" : "en"))}
+          onClick={toggleLang}
           className="flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/45 hover:text-white hover:border-white/15 transition-all"
         >
           <Globe className="w-3.5 h-3.5" />
           {lang === "en" ? "עב" : "EN"}
         </button>
 
-        {/* Notification */}
+        {/* Notifications */}
         <button className="relative p-2 rounded-lg text-white/35 hover:text-white hover:bg-white/5 transition-all">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400" />
         </button>
 
-        {/* Balance */}
-        <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
-          <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-xs font-bold text-emerald-400 font-mono">
-            {MOCK_BALANCE}
-          </span>
-          <span className="text-[10px] text-emerald-400/50 font-medium">
-            USDC
-          </span>
-        </div>
-
-        {/* Wallet */}
-        <button className="hidden md:flex items-center gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/50 hover:text-white hover:border-white/15 transition-all">
-          <Wallet className="w-3.5 h-3.5" />
-          <span className="font-mono">{MOCK_WALLET}</span>
-        </button>
+        {/* Wallet section - real wagmi state */}
+        <WalletSection />
 
         {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xs font-black cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0">
-          ZY
+        <div className="w-8 h-8 rounded-full bg-cyan-500 flex items-center justify-center text-black text-xs font-black cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0">
+          TF
         </div>
       </div>
     </header>
   );
 }
 
-// ─── Root Layout ──────────────────────────────────────────────────────────────
-
+// Root app layout
 export default function AppLayout({
   children,
 }: {
@@ -341,11 +460,8 @@ export default function AppLayout({
   return (
     <div
       className="flex min-h-screen bg-[#03030a] text-white"
-      style={{
-        fontFamily: "var(--font-syne), 'Syne', system-ui, sans-serif",
-      }}
+      style={{ fontFamily: "var(--font-display), system-ui, sans-serif" }}
     >
-      {/* Sidebar */}
       <DesktopSidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((c) => !c)}
@@ -355,12 +471,9 @@ export default function AppLayout({
         onClose={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Main column */}
       <div className="flex flex-col flex-1 min-w-0 min-h-screen">
         <Topbar onMenuClick={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   );

@@ -14,6 +14,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { WalletGate } from "@/components/WalletGate";
 import {
   BarChart3,
   TrendingUp,
@@ -86,7 +87,7 @@ function StatCard({
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className={`rounded-2xl border ${border} bg-gradient-to-br ${gradient} bg-[#070710] p-5`}
+      className={`rounded-2xl border ${border} bg-[#070710] p-5`}
     >
       <div className="mb-4">
         <div className="inline-flex p-2 rounded-lg bg-white/4">
@@ -370,6 +371,10 @@ export default function PortfolioPage() {
   ];
 
   return (
+    <WalletGate
+      title="Connect to view your portfolio"
+      description="Connect a wallet to see your open positions, P&L, and trade history on TrendForge."
+    >
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <motion.div
@@ -566,7 +571,7 @@ export default function PortfolioPage() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
-        className="rounded-2xl border border-cyan-500/15 bg-gradient-to-r from-cyan-500/5 to-transparent p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+        className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-5 flex flex-col sm:flex-row sm:items-center gap-4"
       >
         <div className="flex-1">
           <p className="text-sm font-bold text-white mb-1 flex items-center gap-2">
@@ -588,5 +593,6 @@ export default function PortfolioPage() {
         </div>
       </motion.div>
     </div>
+    </WalletGate>
   );
 }

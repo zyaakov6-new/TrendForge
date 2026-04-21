@@ -186,7 +186,7 @@ function MarketCard({
               duration: 0.8,
               delay: Math.min(index * 0.035, 0.35),
             }}
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+            className="h-full rounded-full bg-emerald-500"
           />
         </div>
       </div>
@@ -275,8 +275,8 @@ function MarketCard({
                 onClick={confirmTrade}
                 className={`flex-1 rounded-xl py-2.5 text-xs font-black text-white transition-all hover:-translate-y-0.5 ${
                   tradeSide === "YES"
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-600 shadow-md shadow-emerald-500/20"
-                    : "bg-gradient-to-r from-rose-500 to-pink-600 shadow-md shadow-rose-500/20"
+                    ? "bg-emerald-500 hover:bg-emerald-400"
+                    : "bg-rose-500 hover:bg-rose-400"
                 }`}
               >
                 Confirm · ${amount} USDC

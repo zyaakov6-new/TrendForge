@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { WalletGate } from "@/components/WalletGate";
 import {
   Sparkles,
   Flame,
@@ -562,6 +563,10 @@ export default function AIGeneratorPage() {
   };
 
   return (
+    <WalletGate
+      title="Connect to use AI Generator"
+      description="Connect a wallet to generate and publish AI-created prediction markets. Publishing requires a Polygon transaction."
+    >
     <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Header */}
       <motion.div
@@ -792,5 +797,6 @@ export default function AIGeneratorPage() {
         </div>
       </div>
     </div>
+    </WalletGate>
   );
 }

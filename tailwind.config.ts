@@ -5,11 +5,17 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./hooks/**/*.{js,ts,jsx,tsx}",
+    "./context/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-syne)", "system-ui", "sans-serif"],
+        // Default sans = Oxanium (display/headings/UI)
+        sans: ["var(--font-display)", "system-ui", "sans-serif"],
+        // Explicit display class for titles
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+        // Mono for numbers, addresses, data
         mono: ["var(--font-mono)", "monospace"],
       },
       colors: {
