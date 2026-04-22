@@ -321,8 +321,8 @@ export async function POST(req: NextRequest) {
     const response = await client().messages.create({
       model:      "claude-opus-4-7",
       max_tokens: 2_048,
-      thinking:   { type: "adaptive" },
-      // Force exactly this tool — Claude cannot respond with plain text
+      // Note: thinking cannot be combined with forced tool_choice (API restriction).
+      // The tool schema itself enforces structure — no thinking needed here.
       tool_choice: { type: "tool", name: "create_prediction_market" },
       tools:  [MARKET_TOOL],
       system: [

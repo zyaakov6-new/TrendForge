@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
@@ -622,6 +623,8 @@ function ConnectWalletButton() {
 }
 
 // Trade confirmation dialog
+// Rendered via createPortal directly into document.body so it escapes
+// any parent overflow:auto / transform context that would break fixed positioning.
 function TradeConfirmDialog({
   open,
   onClose,
@@ -643,28 +646,37 @@ function TradeConfirmDialog({
   price: number;
   isLoading: boolean;
 }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-            onClick={onClose}
-          />
+  // Track client mount — document.body doesn't exist during SSR
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
-          {/* Dialog */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.93, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.93, y: 16 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm mx-4"
-          >
+  if (!mounted || !open) return null;
+
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+        style={{ zIndex: 9998 }}
+        onClick={onClose}
+      />
+
+      {/* Centering wrapper — fills viewport, flexbox-centers the card */}
+      <div
+        className="fixed inset-0 flex items-center justify-center p-4"
+        style={{ zIndex: 9999 }}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.93, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.93, y: 16 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="w-full max-w-sm"
+        >
             <div className="rounded-2xl border border-white/10 bg-[#08080f] shadow-2xl overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/6">
@@ -786,10 +798,10 @@ function TradeConfirmDialog({
                 </motion.button>
               </div>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+        </motion.div>
+      </div>
+    </>,
+    document.body
   );
 }
 

@@ -296,7 +296,8 @@ function ResultCard({
             onBlur={() => setEditing(false)}
             autoFocus
             rows={2}
-            className="w-full resize-none rounded-xl border border-cyan-500/40 bg-cyan-500/5 px-3.5 py-2.5 text-base font-bold text-white outline-none focus:border-cyan-500/70"
+            style={{ color: "white", caretColor: "white" }}
+            className="w-full resize-none rounded-xl border border-cyan-500/40 bg-[#0a0f1f] px-3.5 py-2.5 text-base font-bold outline-none focus:border-cyan-500/70"
           />
         ) : (
           <div
@@ -765,7 +766,8 @@ export default function AIGeneratorPage() {
                 disabled={genState !== "idle"}
                 placeholder={`${TOPIC_SUGGESTIONS[placeholderIdx]}\n\nOr paste an X post URL, Hebrew topic, or any trend...`}
                 rows={4}
-                className="w-full resize-none rounded-xl border border-white/8 bg-white/4 pl-10 pr-4 py-3.5 text-sm text-white placeholder:text-white/22 outline-none focus:border-cyan-500/35 focus:ring-1 focus:ring-cyan-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ color: "white", caretColor: "white" }}
+                className="w-full resize-none rounded-xl border border-white/8 bg-[#0c0c1f] pl-10 pr-4 py-3.5 text-sm placeholder:text-white/22 outline-none focus:border-cyan-500/40 focus:ring-1 focus:ring-cyan-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <div className="absolute bottom-3 right-3 text-[10px] text-white/20 font-mono">
                 {topic.length}/280
@@ -814,7 +816,8 @@ export default function AIGeneratorPage() {
                     placeholder="Paste an X post URL, article snippet, or extra context for Claude..."
                     rows={3}
                     maxLength={2000}
-                    className="w-full resize-none rounded-xl border border-violet-500/20 bg-violet-500/5 px-3.5 py-2.5 text-xs text-white/60 placeholder:text-white/20 outline-none focus:border-violet-500/40 transition-all"
+                    style={{ color: "rgba(255,255,255,0.65)", caretColor: "white" }}
+                    className="w-full resize-none rounded-xl border border-violet-500/20 bg-[#0d0b1f] px-3.5 py-2.5 text-xs placeholder:text-white/20 outline-none focus:border-violet-500/40 transition-all"
                   />
                   <p className="text-[10px] text-white/20 mt-1 text-right font-mono">
                     {context.length}/2000
