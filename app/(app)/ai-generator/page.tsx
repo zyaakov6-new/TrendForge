@@ -3,12 +3,8 @@
 /**
  * AI Generator Page — TrendForge's star feature.
  *
- * Real integration notes (marked with TODO):
- *  - Anthropic Claude API call: replace `simulateGeneration()` with a
- *    POST to /api/generate-market (server action calling claude-3-5-sonnet)
- *  - Polygon/Kuest publish: replace `handlePublish()` with wagmi
- *    `useContractWrite` to the Kuest MarketFactory contract
- *  - Wallet check: wrap publish button with `useAccount()` from wagmi
+ * Claude integration: POST /api/generate-market
+ * On-chain publish: useCreateMarket (CTF + CLOB on Polygon)
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -37,7 +33,9 @@ import {
   Globe,
   ChevronDown,
 } from "lucide-react";
-import { GENERATED_HISTORY, MarketCategory } from "@/lib/mock-data";
+import { GENERATED_HISTORY } from "@/lib/mock-data";
+import type { GeneratedMarket, MarketCategory } from "@/types/generated-market";
+import { VALID_CATEGORIES } from "@/types/generated-market";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,8 +50,8 @@ const LOADING_STEPS = [
   {
     id: "analyze",
     icon: Brain,
-    label: "Analyzing sentiment...",
-    detail: "Processing posts found across X",
+    label: "Analyzing sentiment with Claude...",
+    detail: "Claude reasoning across X data",
     color: "violet",
   },
   {
@@ -70,6 +68,13 @@ const LOADING_STEPS = [
     detail: "Setting verifiable, unambiguous conditions",
     color: "emerald",
   },
+  {
+    id: "structure",
+    icon: Zap,
+    label: "Structuring market output...",
+    detail: "Finalizing prices, tags & metadata",
+    color: "cyan",
+  },
 ] as const;
 
 const TOPIC_SUGGESTIONS = [
@@ -80,58 +85,33 @@ const TOPIC_SUGGESTIONS = [
   "Bitcoin $200K before 2027",
 ];
 
-const CATEGORY_OPTIONS: MarketCategory[] = [
-  "Politics",
-  "Geopolitics",
-  "Crypto",
-  "Tech",
-  "Finance",
-  "Sports",
-  "Israel",
-];
+const CATEGORY_OPTIONS = VALID_CATEGORIES;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface GeneratedMarket {
-  question: string;
-  category: MarketCategory;
-  yesPrice: number;
-  resolveDate: string;
-  criteria: string;
-  xPostsAnalyzed: number;
-  sentimentBullish: number;
-  suggestedLiquidity: number;
-  tags: string[];
-}
+// GeneratedMarket is imported from @/types/generated-market
 
 type GenState = "idle" | "loading" | "result" | "published";
 
-// ─── Mock generation ──────────────────────────────────────────────────────────
+// ─── API call ────────────────────────────────────────────────────────────────
 
-// TODO: Replace with POST /api/generate-market → Anthropic Claude API
-function buildMockMarket(topic: string): GeneratedMarket {
-  const trimmed = topic.trim();
-  const question =
-    trimmed.endsWith("?") ? trimmed : trimmed + "?";
-  const yesPrice = Math.floor(Math.random() * 46) + 28;
-  const categories: MarketCategory[] = [
-    "Politics",
-    "Finance",
-    "Tech",
-    "Geopolitics",
-  ];
-  return {
-    question:
-      question.charAt(0).toUpperCase() + question.slice(1),
-    category: categories[Math.floor(Math.random() * categories.length)],
-    yesPrice,
-    resolveDate: "Jul 1, 2026",
-    criteria: `Resolves YES if verified by at least two credible primary sources (Reuters, AP, Haaretz, Times of Israel, or official government announcements). Resolves NO if the event does not occur before the resolution date. Resolves N/A if the market becomes ambiguous or unanswerable due to external circumstances outside the original scope.`,
-    xPostsAnalyzed: Math.floor(Math.random() * 8000) + 6000,
-    sentimentBullish: Math.floor(Math.random() * 45) + 35,
-    suggestedLiquidity: Math.floor(Math.random() * 18000) + 5000,
-    tags: ["israel", "AI-generated", "live-news"],
-  };
+async function callGenerateAPI(
+  topic: string,
+  language: "en" | "he",
+  context: string
+): Promise<GeneratedMarket> {
+  const res = await fetch("/api/generate-market", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({
+      topic,
+      language,
+      context: context.trim() || undefined,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+
+  return data.market as GeneratedMarket;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -392,15 +372,91 @@ function ResultCard({
         </div>
       </div>
 
+      {/* Description */}
+      {market.description && (
+        <div className="mb-4">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5 block">
+            Context
+          </label>
+          <p className="text-xs text-white/50 leading-relaxed">
+            {market.description}
+          </p>
+        </div>
+      )}
+
+      {/* Hebrew question */}
+      {market.questionHe && (
+        <div className="mb-4 rounded-xl bg-white/[0.025] border border-white/5 p-3 text-right" dir="rtl">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1 block text-left" dir="ltr">
+            Hebrew / עברית
+          </label>
+          <p className="text-sm font-semibold text-white/70">
+            {market.questionHe}
+          </p>
+        </div>
+      )}
+
+      {/* Outcomes */}
+      {market.outcomes && market.outcomes.length > 2 && (
+        <div className="mb-4">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5 block">
+            Outcomes
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {market.outcomes.map((o, i) => (
+              <span
+                key={o}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
+                  i === 0
+                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+                    : i === 1
+                    ? "bg-rose-500/10 border-rose-500/25 text-rose-400"
+                    : "bg-white/4 border-white/10 text-white/50"
+                }`}
+              >
+                {o}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Resolution criteria */}
       <div className="mb-4">
         <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5 block">
           Resolution Criteria
         </label>
         <p className="text-xs text-white/50 leading-relaxed rounded-xl bg-white/[0.025] border border-white/5 p-3.5">
-          {market.criteria}
+          {market.resolutionCriteria}
         </p>
       </div>
+
+      {/* Resolution sources */}
+      {market.resolutionSources && market.resolutionSources.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {market.resolutionSources.map((src) => (
+            <span
+              key={src}
+              className="rounded-full border border-white/8 bg-white/3 px-2.5 py-0.5 text-[10px] font-semibold text-white/35 uppercase tracking-wide"
+            >
+              {src}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* AI reasoning */}
+      {market.aiReasoning && (
+        <div className="mb-4 rounded-xl border border-violet-500/15 bg-violet-500/5 p-3.5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400/60 mb-1 flex items-center gap-1.5">
+            <Brain className="w-3 h-3" />
+            Claude's Reasoning
+          </p>
+          <p className="text-xs text-white/45 leading-relaxed italic">
+            {market.aiReasoning}
+          </p>
+        </div>
+      )}
 
       {/* AI metadata */}
       <div className="flex flex-wrap gap-3 mb-5 text-[11px] text-white/30 font-mono">
@@ -415,7 +471,7 @@ function ResultCard({
         <span className="flex items-center gap-1">
           <DollarSign className="w-3 h-3" />
           Suggested liquidity: $
-          {market.suggestedLiquidity.toLocaleString()}
+          {market.suggestedLiquidityUSDC.toLocaleString()}
         </span>
       </div>
 
@@ -547,6 +603,9 @@ function SuccessPanel({ onReset }: { onReset: () => void }) {
 
 export default function AIGeneratorPage() {
   const [topic, setTopic] = useState("");
+  const [language, setLanguage] = useState<"en" | "he">("en");
+  const [context, setContext] = useState("");
+  const [showContext, setShowContext] = useState(false);
   const [genState, setGenState] = useState<GenState>("idle");
   const [loadingStep, setLoadingStep] = useState(0);
   const [generatedMarket, setGeneratedMarket] =
@@ -572,35 +631,52 @@ export default function AIGeneratorPage() {
     setGenState("loading");
     setLoadingStep(0);
 
-    // TODO: Replace simulation with real Claude API call:
-    //   POST /api/generate-market { topic }
-    //   Returns: { question, description, resolutionCriteria, yesPrice, ... }
-    //   Server route: app/api/generate-market/route.ts
-    for (let i = 1; i <= LOADING_STEPS.length; i++) {
-      await new Promise((r) => setTimeout(r, 650 + Math.random() * 450));
-      setLoadingStep(i);
+    // Kick off the real Claude API call in the background
+    const apiCallPromise = callGenerateAPI(topic, language, context);
+
+    // Animate steps 1-3 at fixed cadence while Claude is thinking
+    const STEP_DURATIONS = [800, 900, 900]; // ms per step (steps 1-3)
+    for (let i = 0; i < STEP_DURATIONS.length; i++) {
+      await new Promise((r) => setTimeout(r, STEP_DURATIONS[i]));
+      setLoadingStep(i + 1);
     }
-    await new Promise((r) => setTimeout(r, 350));
-    setGeneratedMarket(buildMockMarket(topic));
+
+    // Step 4 shows while we wait for the Claude API response
+    let market: GeneratedMarket;
+    try {
+      market = await apiCallPromise;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Generation failed";
+      toast.error(msg, { duration: 6000 });
+      setGenState("idle");
+      setLoadingStep(0);
+      return;
+    }
+
+    // Final step animation
+    setLoadingStep(LOADING_STEPS.length);
+    await new Promise((r) => setTimeout(r, 380));
+    setGeneratedMarket(market);
     setGenState("result");
   };
 
   const handlePublish = async () => {
     if (!generatedMarket) return;
 
-    // Parse resolve date to ISO string
-    const endDate = new Date(generatedMarket.resolveDate + " 2026").toISOString();
+    const endDate = generatedMarket.endDate
+      ? new Date(generatedMarket.endDate + "T12:00:00Z").toISOString()
+      : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
 
     toast.loading("Publishing to Polygon...", { id: "publish" });
 
     await createMarket.create({
-      question:           generatedMarket.question,
-      description:        `${generatedMarket.question} This market was auto-generated by TrendForge AI based on ${generatedMarket.xPostsAnalyzed.toLocaleString()} X posts with ${generatedMarket.sentimentBullish}% bullish sentiment.`,
-      resolutionCriteria: generatedMarket.criteria,
-      category:           generatedMarket.category,
+      question:             generatedMarket.question,
+      description:          generatedMarket.description,
+      resolutionCriteria:   generatedMarket.resolutionCriteria,
+      category:             generatedMarket.category,
       endDate,
-      aiGenerated:        true,
-      initialLiquidityUSDC: 0, // set to e.g. 100 to seed liquidity automatically
+      aiGenerated:          true,
+      initialLiquidityUSDC: 0,
     });
 
     if (createMarket.step === "error") {
@@ -620,6 +696,8 @@ export default function AIGeneratorPage() {
 
   const handleReset = () => {
     setTopic("");
+    setContext("");
+    setShowContext(false);
     setGenState("idle");
     setGeneratedMarket(null);
     setLoadingStep(0);
@@ -696,15 +774,54 @@ export default function AIGeneratorPage() {
 
             {/* Options row */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <button className="flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/3 px-3 py-1.5 text-xs font-medium text-white/40 hover:text-white hover:border-white/15 transition-all">
+              <button
+                onClick={() => setLanguage((l) => l === "he" ? "en" : "he")}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                  language === "he"
+                    ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
+                    : "border-white/8 bg-white/3 text-white/40 hover:text-white hover:border-white/15"
+                }`}
+              >
                 <Globe className="w-3.5 h-3.5" />
-                Hebrew / עברית
+                {language === "he" ? "עברית - Hebrew" : "Hebrew / עברית"}
               </button>
-              <span className="text-white/15 text-xs">·</span>
-              <span className="text-xs text-white/22">
-                ⌘↵ to generate
-              </span>
+              <button
+                onClick={() => setShowContext((v) => !v)}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                  showContext
+                    ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+                    : "border-white/8 bg-white/3 text-white/40 hover:text-white hover:border-white/15"
+                }`}
+              >
+                <Hash className="w-3.5 h-3.5" />
+                {showContext ? "Hide context" : "Add context"}
+              </button>
+              <span className="text-white/15 text-xs ml-auto">⌘↵ to generate</span>
             </div>
+
+            {/* Optional context input */}
+            <AnimatePresence>
+              {showContext && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-4"
+                >
+                  <textarea
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="Paste an X post URL, article snippet, or extra context for Claude..."
+                    rows={3}
+                    maxLength={2000}
+                    className="w-full resize-none rounded-xl border border-violet-500/20 bg-violet-500/5 px-3.5 py-2.5 text-xs text-white/60 placeholder:text-white/20 outline-none focus:border-violet-500/40 transition-all"
+                  />
+                  <p className="text-[10px] text-white/20 mt-1 text-right font-mono">
+                    {context.length}/2000
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Suggestion chips — only when idle */}
             <AnimatePresence>
