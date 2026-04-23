@@ -36,6 +36,7 @@ import { useTrade } from "@/hooks/useTrade";
 import { toUSDCUnits } from "@/lib/contracts";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
+import { useKuestMarket, useMarketLivePrices } from "@/hooks/useKuestMarkets";
 
 // ─── Extended mock data ───────────────────────────────────────────────────────
 
@@ -1134,18 +1135,30 @@ export default function MarketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const market = MARKETS.find(m => m.id === id) ?? MARKETS[0];
+  // Real market data — falls back to mock on API error
+  const { data: fetchedMarket, isLoading: marketLoading } = useKuestMarket(id);
+  const market: Market = fetchedMarket ?? MARKETS.find(m => m.id === id) ?? MARKETS[0];
+
   const analysis = getClaudeAnalysis(id);
   const userPosition = POSITIONS.find(p => p.marketId === id) ?? null;
 
-  // Live price simulation
-  const [liveYes, setLiveYes] = useState(market.yesPrice);
+  // Real live prices via Gamma CLOB API (polled every 8s when token IDs are available)
+  const { data: livePrices } = useMarketLivePrices(market.yesTokenId, market.noTokenId);
+
+  // Simulated drift as fallback when no token IDs (mock markets or Gamma outage)
+  const [simulatedYes, setSimulatedYes] = useState(market.yesPrice);
   useEffect(() => {
-    const id2 = setInterval(() => {
-      setLiveYes(p => parseFloat(Math.max(5, Math.min(95, p + (Math.random() - 0.505) * 1.2)).toFixed(1)));
+    if (market.yesTokenId) return; // real prices available — skip simulation
+    const timer = setInterval(() => {
+      setSimulatedYes(p => parseFloat(Math.max(5, Math.min(95, p + (Math.random() - 0.505) * 1.2)).toFixed(1)));
     }, 3800);
-    return () => clearInterval(id2);
-  }, [market.id]);
+    return () => clearInterval(timer);
+  }, [market.id, market.yesTokenId]);
+
+  // Prefer real mid-price, fall back to simulated drift
+  const liveYes = livePrices
+    ? Math.round(livePrices.yesMid * 100)
+    : simulatedYes;
 
   const [tab, setTab] = useState<TabKey>("overview");
   const catClass = catPillColors[market.category] ?? catPillColors.Finance;
@@ -1156,6 +1169,22 @@ export default function MarketDetailPage() {
     { key: "trades", label: "Trades", icon: Activity },
     { key: "comments", label: `Comments (${MOCK_COMMENTS.length})`, icon: MessageSquare },
   ];
+
+  // Full-page skeleton while market loads (only on first load, not refetch)
+  if (marketLoading && !fetchedMarket) {
+    return (
+      <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto animate-pulse space-y-5">
+        <div className="h-5 w-32 rounded-lg bg-white/5" />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-6">
+          <div className="space-y-5">
+            <div className="h-64 rounded-2xl bg-white/[0.03]" />
+            <div className="h-80 rounded-2xl bg-white/[0.03]" />
+          </div>
+          <div className="h-96 rounded-2xl bg-white/[0.03]" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -1192,6 +1221,12 @@ export default function MarketDetailPage() {
               {market.trending && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/35 bg-orange-500/8 px-2.5 py-0.5 text-[10px] font-bold uppercase text-orange-400">
                   <TrendingUp className="w-3 h-3" /> Trending
+                </span>
+              )}
+              {livePrices && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/8 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  LIVE
                 </span>
               )}
               <span className="text-[10px] text-white/25 font-mono ml-auto flex items-center gap-1">

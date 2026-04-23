@@ -57,6 +57,9 @@ export function gammaToMarket(g: GammaMarket): Market {
     traders:     Math.round(volume / 50), // rough estimate
     liquidity,
     description: g.description?.replace(/^\[AI-GENERATED[^\]]*\] /, "") ?? "",
+    // CLOB token IDs from Gamma API — needed for real-time price polling
+    yesTokenId:  g.clobTokenIds?.[0],
+    noTokenId:   g.clobTokenIds?.[1],
   };
 }
 

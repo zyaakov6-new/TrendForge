@@ -395,6 +395,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/ai-generator": "AI Generator",
   "/portfolio": "Portfolio",
   "/trends": "Trends",
+  "/settings": "Settings",
 };
 
 function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
