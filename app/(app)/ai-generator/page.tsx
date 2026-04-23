@@ -516,7 +516,27 @@ function ResultCard({
   );
 }
 
-function SuccessPanel({ onReset }: { onReset: () => void }) {
+function SuccessPanel({
+  onReset,
+  conditionId,
+  txHash,
+}: {
+  onReset: () => void;
+  conditionId?: string | null;
+  txHash?: string | null;
+}) {
+  // Short display helpers
+  const shortTx = txHash
+    ? `${txHash.slice(0, 6)}…${txHash.slice(-4)}`
+    : null;
+  const shortCond = conditionId
+    ? `${conditionId.slice(0, 6)}…${conditionId.slice(-4)}`
+    : null;
+  const polygonScanUrl = txHash
+    ? `https://polygonscan.com/tx/${txHash}`
+    : null;
+  const marketPath = conditionId ? `/markets/${conditionId}` : "/markets";
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
@@ -575,15 +595,45 @@ function SuccessPanel({ onReset }: { onReset: () => void }) {
         <p className="text-sm text-white/50 mb-1">
           Your market is now open for trading on Polygon.
         </p>
-        <p className="text-xs text-white/25 font-mono mb-6">
-          TX: 0x3f4a...9b12 · Block confirmed in 0.8s
-        </p>
+
+        {/* Real tx / conditionId */}
+        <div className="flex flex-col items-center gap-1 mb-6">
+          {shortTx && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-white/30 font-mono">TX:</span>
+              {polygonScanUrl ? (
+                <a
+                  href={polygonScanUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-cyan-400/80 font-mono hover:text-cyan-400 transition-colors underline underline-offset-2"
+                >
+                  {shortTx}
+                </a>
+              ) : (
+                <span className="text-xs text-white/30 font-mono">{shortTx}</span>
+              )}
+            </div>
+          )}
+          {shortCond && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-white/30 font-mono">Market ID:</span>
+              <span className="text-xs text-white/40 font-mono">{shortCond}</span>
+            </div>
+          )}
+          {!shortTx && !shortCond && (
+            <p className="text-xs text-white/25 font-mono">Block confirmed on Polygon</p>
+          )}
+        </div>
 
         <div className="flex justify-center gap-3">
-          <button className="flex items-center gap-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25 px-5 py-2.5 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 transition-all">
+          <a
+            href={marketPath}
+            className="flex items-center gap-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25 px-5 py-2.5 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 transition-all"
+          >
             <BarChart3 className="w-4 h-4" />
             View Market
-          </button>
+          </a>
           <button
             onClick={onReset}
             className="rounded-xl border border-white/8 bg-white/4 px-5 py-2.5 text-sm font-semibold text-white/45 hover:text-white transition-all"
@@ -882,7 +932,12 @@ export default function AIGeneratorPage() {
               />
             )}
             {genState === "published" && (
-              <SuccessPanel key="success" onReset={handleReset} />
+              <SuccessPanel
+                key="success"
+                onReset={handleReset}
+                conditionId={createMarket.conditionId}
+                txHash={createMarket.txHash}
+              />
             )}
           </AnimatePresence>
         </div>
