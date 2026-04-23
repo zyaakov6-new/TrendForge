@@ -170,7 +170,7 @@ function LoadingPanel({ step }: { step: number }) {
         <motion.div
           animate={{ width: `${(step / LOADING_STEPS.length) * 100}%` }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-500"
+          className="h-full rounded-full bg-violet-500"
         />
       </div>
 
@@ -262,7 +262,7 @@ function ResultCard({
       initial={{ opacity: 0, y: 28, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", bounce: 0.22, duration: 0.6 }}
-      className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-950/25 via-slate-950/40 to-slate-950/60 p-6 shadow-2xl shadow-cyan-500/5"
+      className="rounded-2xl border border-cyan-500/25 bg-[#07070f] p-6 shadow-2xl shadow-cyan-500/5"
     >
       {/* Card header */}
       <div className="flex items-center justify-between mb-5">
@@ -323,7 +323,8 @@ function ResultCard({
             onChange={(e) =>
               setSelectedCategory(e.target.value as MarketCategory)
             }
-            className="appearance-none rounded-lg border border-white/8 bg-white/4 px-3 py-2 pr-7 text-xs font-semibold text-white/70 outline-none cursor-pointer"
+            style={{ color: "rgba(255,255,255,0.75)" }}
+            className="appearance-none rounded-lg border border-white/8 bg-[#0c0c1f] px-3 py-2 pr-7 text-xs font-semibold outline-none cursor-pointer"
           >
             {CATEGORY_OPTIONS.map((c) => (
               <option key={c} value={c} className="bg-zinc-900">
@@ -336,7 +337,7 @@ function ResultCard({
       </div>
 
       {/* Probabilities */}
-      <div className="mb-4 rounded-xl border border-white/6 bg-white/3 p-4">
+      <div className="mb-4 rounded-xl border border-white/6 bg-white/[0.02] p-4">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold text-white/40">
             Suggested Probabilities
@@ -346,31 +347,50 @@ function ResultCard({
           </span>
         </div>
         <div className="flex gap-3 mb-3">
+          {/* YES / first outcome */}
           <div className="flex-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
             <p className="text-2xl font-black text-emerald-400 font-mono">
               {market.yesPrice}¢
             </p>
-            <p className="text-[10px] font-bold uppercase text-emerald-400/60 tracking-wider mt-0.5">
-              YES
+            <p className="text-[10px] font-bold uppercase text-emerald-400/60 tracking-wider mt-0.5 truncate">
+              {market.outcomes?.[0] ?? "YES"}
             </p>
           </div>
+          {/* NO / second outcome */}
           <div className="flex-1 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3 text-center">
             <p className="text-2xl font-black text-rose-400 font-mono">
               {100 - market.yesPrice}¢
             </p>
-            <p className="text-[10px] font-bold uppercase text-rose-400/60 tracking-wider mt-0.5">
-              NO
+            <p className="text-[10px] font-bold uppercase text-rose-400/60 tracking-wider mt-0.5 truncate">
+              {market.outcomes?.[1] ?? "NO"}
             </p>
           </div>
+          {/* Extra outcomes (3+) */}
+          {market.outcomes?.slice(2).map((o, i) => (
+            <div
+              key={o}
+              className="flex-1 rounded-xl bg-white/4 border border-white/10 p-3 text-center"
+            >
+              <p className="text-2xl font-black text-white/50 font-mono">
+                -¢
+              </p>
+              <p className="text-[10px] font-bold uppercase text-white/30 tracking-wider mt-0.5 truncate">
+                {o}
+              </p>
+            </div>
+          ))}
         </div>
-        <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${market.yesPrice}%` }}
-            transition={{ duration: 0.9, ease: "easeOut" }}
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-          />
-        </div>
+        {/* Bar only meaningful for binary */}
+        {(market.outcomes?.length ?? 2) <= 2 && (
+          <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${market.yesPrice}%` }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className="h-full rounded-full bg-emerald-500"
+            />
+          </div>
+        )}
       </div>
 
       {/* Description */}
@@ -397,30 +417,6 @@ function ResultCard({
         </div>
       )}
 
-      {/* Outcomes */}
-      {market.outcomes && market.outcomes.length > 2 && (
-        <div className="mb-4">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5 block">
-            Outcomes
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {market.outcomes.map((o, i) => (
-              <span
-                key={o}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
-                  i === 0
-                    ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-                    : i === 1
-                    ? "bg-rose-500/10 border-rose-500/25 text-rose-400"
-                    : "bg-white/4 border-white/10 text-white/50"
-                }`}
-              >
-                {o}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Resolution criteria */}
       <div className="mb-4">
@@ -729,10 +725,7 @@ export default function AIGeneratorPage() {
         </div>
         <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight mb-2 leading-tight">
           Forge New Markets
-          <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-            {" "}
-            with Claude AI
-          </span>
+          <span className="text-cyan-400"> with Claude AI</span>
         </h1>
         <p className="text-white/45 text-sm md:text-base max-w-2xl">
           Describe a trend, paste an X link, or type any topic in Hebrew or
@@ -860,7 +853,7 @@ export default function AIGeneratorPage() {
               className={`w-full flex items-center justify-center gap-2.5 rounded-xl py-3.5 text-base font-bold transition-all duration-200 ${
                 !topic.trim() || genState !== "idle"
                   ? "bg-white/5 text-white/25 cursor-not-allowed"
-                  : "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-xl shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/35 hover:-translate-y-0.5 active:translate-y-0"
+                  : "bg-cyan-500 text-black shadow-xl shadow-cyan-500/20 hover:bg-cyan-400 hover:shadow-cyan-500/30 hover:-translate-y-0.5 active:translate-y-0"
               }`}
             >
               <Flame className="w-5 h-5" />
