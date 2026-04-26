@@ -32,6 +32,7 @@ import {
   Copy,
   Globe,
   ChevronDown,
+  Eye,
 } from "lucide-react";
 import { GENERATED_HISTORY } from "@/lib/mock-data";
 import type { GeneratedMarket, MarketCategory } from "@/types/generated-market";
@@ -89,7 +90,7 @@ const CATEGORY_OPTIONS = VALID_CATEGORIES;
 
 // GeneratedMarket is imported from @/types/generated-market
 
-type GenState = "idle" | "loading" | "result" | "published";
+type GenState = "idle" | "loading" | "result" | "submitted" | "published";
 
 // ─── API call ────────────────────────────────────────────────────────────────
 
@@ -488,7 +489,7 @@ function ResultCard({
           <button
             onClick={onPublish}
             disabled={isPublishing}
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-bold text-white hover:bg-emerald-400 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:translate-y-0"
+            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-bold text-black hover:bg-cyan-400 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:translate-y-0"
           >
             {isPublishing ? (
               <motion.span
@@ -501,7 +502,7 @@ function ResultCard({
             ) : (
               <Zap className="w-4 h-4" />
             )}
-            {publishLabel ?? "Publish to Polygon"}
+            {publishLabel ?? "Submit for Review"}
           </button>
           <button
             onClick={onReset}
@@ -646,6 +647,55 @@ function SuccessPanel({
   );
 }
 
+// ─── Submitted Panel (market sent to moderation queue) ───────────────────────
+
+function SubmittedPanel({ onReset }: { onReset: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ type: "spring", bounce: 0.35 }}
+      className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-8 text-center"
+    >
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", delay: 0.1, bounce: 0.65 }}
+        className="inline-flex w-16 h-16 items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-500/35 mb-4"
+      >
+        <CheckCircle className="w-8 h-8 text-cyan-400" />
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+        <h3 className="text-2xl font-black text-white mb-2">Submitted for Review</h3>
+        <p className="text-sm text-white/50 mb-1">
+          Your market is in the admin review queue.
+        </p>
+        <p className="text-xs text-white/25 mb-6">
+          Once approved, it will be published to Polygon automatically.
+        </p>
+
+        <div className="flex justify-center gap-3">
+          <a
+            href="/moderate"
+            className="flex items-center gap-2 rounded-xl bg-cyan-500/10 border border-cyan-500/25 px-5 py-2.5 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 transition-all"
+          >
+            <Eye className="w-4 h-4" />
+            Open Queue
+          </a>
+          <button
+            onClick={onReset}
+            className="rounded-xl border border-white/8 bg-white/4 px-5 py-2.5 text-sm font-semibold text-white/45 hover:text-white transition-all"
+          >
+            Forge Another
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AIGeneratorPage() {
@@ -707,39 +757,41 @@ export default function AIGeneratorPage() {
     setGenState("result");
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
+  // Submit the generated market to the moderation queue (no on-chain tx here)
   const handlePublish = async () => {
-    if (!generatedMarket) return;
+    if (!generatedMarket || submitting) return;
+    setSubmitting(true);
+    toast.loading("Submitting to review queue…", { id: "submit" });
 
-    const endDate = generatedMarket.endDate
-      ? new Date(generatedMarket.endDate + "T12:00:00Z").toISOString()
-      : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      const res = await fetch("/api/markets/pending", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          market:      generatedMarket,
+          topic,
+          submittedBy: address ?? undefined,
+        }),
+      });
 
-    toast.loading("Publishing to Polygon...", { id: "publish" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
 
-    await createMarket.create({
-      question:             generatedMarket.question,
-      description:          generatedMarket.description,
-      resolutionCriteria:   generatedMarket.resolutionCriteria,
-      category:             generatedMarket.category,
-      endDate,
-      aiGenerated:          true,
-      initialLiquidityUSDC: 0,
-    });
-
-    if (createMarket.step === "error") {
-      toast.error(createMarket.error ?? "Transaction failed", { id: "publish" });
-    } else {
-      toast.success("Market is live on Polygon!", { id: "publish" });
-      setGenState("published");
+      toast.success("Submitted for admin review!", { id: "submit", duration: 4000 });
+      setGenState("submitted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to submit",
+        { id: "submit" }
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
-
-  // Sync published state when createMarket completes
-  useEffect(() => {
-    if (createMarket.step === "complete" && genState === "result") {
-      setGenState("published");
-    }
-  }, [createMarket.step, genState]);
 
   const handleReset = () => {
     setTopic("");
@@ -752,10 +804,7 @@ export default function AIGeneratorPage() {
     setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
-  // Show on-chain progress in the publish button label
-  const publishButtonLabel = createMarket.step !== "idle" && createMarket.step !== "complete" && createMarket.step !== "error"
-    ? createMarket.stepLabel
-    : "Approve & Publish to Polygon";
+  const publishButtonLabel = submitting ? "Submitting…" : "Submit for Review";
 
   return (
     <WalletGate
@@ -923,13 +972,12 @@ export default function AIGeneratorPage() {
                 onPublish={handlePublish}
                 onReset={handleReset}
                 publishLabel={publishButtonLabel}
-                isPublishing={
-                  createMarket.step !== "idle" &&
-                  createMarket.step !== "complete" &&
-                  createMarket.step !== "error"
-                }
-                publishProgress={createMarket.progress}
+                isPublishing={submitting}
+                publishProgress={undefined}
               />
+            )}
+            {genState === "submitted" && (
+              <SubmittedPanel key="submitted" onReset={handleReset} />
             )}
             {genState === "published" && (
               <SuccessPanel
