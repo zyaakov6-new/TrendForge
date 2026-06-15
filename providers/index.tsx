@@ -5,7 +5,7 @@
  *
  * Stack: wagmi v2 + viem + RainbowKit v2 + @tanstack/react-query v5
  *
- * Chains: Polygon mainnet (137) + Polygon Amoy testnet (80002)
+ * Chains: Polygon mainnet (137) only — Amoy testnet removed until contracts are deployed
  *
  * Kuest integration notes:
  *  - Kuest deploys on Polygon PoS - same chain, no changes needed
@@ -15,7 +15,7 @@
  */
 
 import { WagmiProvider } from "wagmi";
-import { polygon, polygonAmoy } from "wagmi/chains";
+import { polygon } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RainbowKitProvider,
@@ -35,7 +35,7 @@ const wagmiConfig = getDefaultConfig({
   projectId:
     process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ??
     "trendforge-dev-placeholder",
-  chains: [polygon, polygonAmoy],
+  chains: [polygon],
   ssr: true,
 });
 

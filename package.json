@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.90.0",
     "@rainbow-me/rainbowkit": "^2.1.7",
     "@tanstack/react-query": "^5.99.2",
+    "@upstash/redis": "^1.38.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",

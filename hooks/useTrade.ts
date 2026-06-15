@@ -37,7 +37,7 @@ import type { Address } from "viem";
 import { CTF_EXCHANGE_ABI, ORDER_TYPES, SIDE } from "@/lib/abis";
 import { getAddresses, toUSDCUnits, CTF_EXCHANGE_DOMAIN } from "@/lib/contracts";
 import { buildLimitOrder, submitOrder } from "@/lib/clob";
-import { useUSDCApproval } from "./useApproval";
+import { useUSDCApproval, useCTFApproval } from "./useApproval";
 import { useUSDCBalance } from "./useUSDCBalance";
 
 // ---- Types ------------------------------------------------------------------
@@ -46,15 +46,20 @@ export type TradeSide = "YES" | "NO";
 
 export interface TradeParams {
   /** Condition ID of the market (bytes32) */
-  conditionId: string;
+  conditionId:   string;
   /** CLOB token ID for the outcome we're buying/selling */
-  tokenId:     string;
+  tokenId:       string;
   /** Human-readable amount in USDC (e.g. 50.0) */
-  amountUSDC:  number;
+  amountUSDC:    number;
   /** Current price per share, 0-1 (e.g. 0.67 for YES at 67c) */
   pricePerShare: number;
-  /** BUY or SELL */
-  side:        TradeSide;
+  /** Which outcome token this trade is for */
+  side:          TradeSide;
+  /**
+   * Whether we are opening a new position (BUY) or closing an existing one (SELL).
+   * Defaults to "BUY". SELL requires CTF ERC-1155 setApprovalForAll; BUY requires USDC approval.
+   */
+  action?: "BUY" | "SELL";
 }
 
 export type TradeStep =
@@ -117,8 +122,11 @@ export function useTrade(
   const [orderStatus,  setOrderStatus]  = useState<"matched" | "delayed" | "unmatched" | null>(null);
   const [sharesReceived, setSharesReceived] = useState(0);
 
-  // USDC approval
+  // USDC approval (needed for BUY orders — user pays USDC)
   const approval = useUSDCApproval(trader, requiredUSDC);
+
+  // CTF ERC-1155 approval (needed for SELL orders — Exchange transfers outcome tokens)
+  const ctfApproval = useCTFApproval(trader);
 
   // EIP-712 signing
   const { signTypedDataAsync, reset: resetSign } = useSignTypedData();
@@ -150,33 +158,44 @@ export function useTrade(
     setError(null);
 
     try {
-      // --- Step 1: USDC approval ---
-      if (approval.needsApproval) {
+      const action = params.action ?? "BUY";
+
+      // --- Step 1a: USDC approval (BUY orders only) ---
+      if (action === "BUY" && approval.needsApproval) {
         setStep("approving");
         approval.approve();
 
-        // Wait for approval to complete
         await new Promise<void>((resolve, reject) => {
-          const MAX_WAIT = 120_000; // 2 minutes
+          const MAX_WAIT = 120_000;
           const started  = Date.now();
           const poll = setInterval(() => {
-            if (approval.state === "approved") {
-              clearInterval(poll);
-              resolve();
-            } else if (approval.state === "error") {
-              clearInterval(poll);
-              reject(new Error(approval.error ?? "Approval failed"));
-            } else if (Date.now() - started > MAX_WAIT) {
-              clearInterval(poll);
-              reject(new Error("Approval timed out"));
-            }
+            if (approval.state === "approved") { clearInterval(poll); resolve(); }
+            else if (approval.state === "error") { clearInterval(poll); reject(new Error(approval.error ?? "Approval failed")); }
+            else if (Date.now() - started > MAX_WAIT) { clearInterval(poll); reject(new Error("Approval timed out")); }
+          }, 800);
+        });
+      }
+
+      // --- Step 1b: CTF ERC-1155 approval (SELL orders only) ---
+      if (action === "SELL" && ctfApproval.needsApproval) {
+        setStep("approving");
+        ctfApproval.approve();
+
+        await new Promise<void>((resolve, reject) => {
+          const MAX_WAIT = 120_000;
+          const started  = Date.now();
+          const poll = setInterval(() => {
+            if (!ctfApproval.needsApproval) { clearInterval(poll); resolve(); }
+            else if (ctfApproval.error)     { clearInterval(poll); reject(new Error(ctfApproval.error)); }
+            else if (Date.now() - started > MAX_WAIT) { clearInterval(poll); reject(new Error("CTF approval timed out")); }
           }, 800);
         });
       }
 
       // --- Step 2: Build order ---
-      const clobSide = params.side === "YES" ? SIDE.BUY : SIDE.BUY;
-      // (For SELL: use SIDE.SELL and flip makerAmount/takerAmount)
+      // BUY:  makerAmount=USDC paid,   takerAmount=shares received, side=BUY
+      // SELL: makerAmount=shares given, takerAmount=USDC received,  side=SELL
+      const clobSide = action === "SELL" ? SIDE.SELL : SIDE.BUY;
 
       const order = buildLimitOrder(
         trader,
@@ -280,6 +299,7 @@ export function useTrade(
       setSharesReceived(0);
       resetSign();
       approval.reset();
+      ctfApproval.reset();
     },
   };
 }

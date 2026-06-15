@@ -16,8 +16,73 @@ import { useState } from "react";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useChainId } from "wagmi";
 import { maxUint256 } from "viem";
 import type { Address } from "viem";
-import { ERC20_ABI } from "@/lib/abis";
+import { ERC20_ABI, CTF_ABI } from "@/lib/abis";
 import { getAddresses } from "@/lib/contracts";
+
+// ---- CTF ERC-1155 approval — needed for SELL orders -------------------------
+//
+// Before selling outcome tokens, the CTF Exchange must be approved to transfer
+// the user's ERC-1155 position tokens. Unlike USDC (ERC-20 allowance), ERC-1155
+// uses a single setApprovalForAll(operator, true) call — covers all token IDs.
+
+export interface UseCTFApprovalReturn {
+  needsApproval: boolean;
+  approve:       () => void;
+  isApproving:   boolean;
+  approveTxHash: `0x${string}` | undefined;
+  error:         string | null;
+  reset:         () => void;
+}
+
+export function useCTFApproval(owner: Address | undefined): UseCTFApprovalReturn {
+  const chainId   = useChainId();
+  const contracts = getAddresses(chainId);
+  const [approveError, setApproveError] = useState<string | null>(null);
+
+  const { data: isApproved } = useReadContract({
+    address:      contracts.CTF,
+    abi:          CTF_ABI,
+    functionName: "isApprovedForAll",
+    args:         owner ? [owner, contracts.EXCHANGE] : undefined,
+    query: {
+      enabled:   Boolean(owner),
+      staleTime: 15_000,
+    },
+  });
+
+  const {
+    writeContract,
+    data: approveTxHash,
+    isPending: isWritePending,
+    reset: resetWrite,
+  } = useWriteContract();
+
+  const { isLoading: isWaitingConfirm } = useWaitForTransactionReceipt({
+    hash: approveTxHash,
+  });
+
+  function approve() {
+    setApproveError(null);
+    writeContract(
+      {
+        address:      contracts.CTF,
+        abi:          CTF_ABI,
+        functionName: "setApprovalForAll",
+        args:         [contracts.EXCHANGE, true],
+      },
+      { onError: (e) => setApproveError(e.message) },
+    );
+  }
+
+  return {
+    needsApproval: isApproved === false,
+    approve,
+    isApproving:   isWritePending || isWaitingConfirm,
+    approveTxHash,
+    error:         approveError,
+    reset: () => { setApproveError(null); resetWrite(); },
+  };
+}
 
 // ---- Check current allowance ------------------------------------------------
 

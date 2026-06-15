@@ -200,6 +200,27 @@ export const CTF_ABI = [
     ],
     outputs: [{ type: "uint256" }],
   },
+  // ERC-1155 approval — required before the Exchange can transfer outcome tokens on SELL orders
+  {
+    name: "isApprovedForAll",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "account",  type: "address" },
+      { name: "operator", type: "address" },
+    ],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    name: "setApprovalForAll",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "operator", type: "address" },
+      { name: "approved", type: "bool" },
+    ],
+    outputs: [],
+  },
   // Events
   {
     name: "ConditionPreparation",

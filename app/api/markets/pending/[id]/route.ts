@@ -42,7 +42,7 @@ export async function PATCH(
     body.reviewedBy  = body.reviewedBy  ?? req.headers.get("x-admin-wallet") ?? undefined;
   }
 
-  const updated = store.patch(id, body);
+  const updated = await store.patch(id, body);
   if (!updated) {
     return NextResponse.json({ error: "Market not found" }, { status: 404 });
   }
@@ -59,7 +59,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const market = store.getById(id);
+  const market = await store.getById(id);
   if (!market) {
     return NextResponse.json({ error: "Market not found" }, { status: 404 });
   }
@@ -72,6 +72,6 @@ export async function DELETE(
     );
   }
 
-  store.patch(id, { status: "rejected" }); // Keep but could hard-delete here
+  await store.patch(id, { status: "rejected" }); // Keep but could hard-delete here
   return NextResponse.json({ ok: true });
 }

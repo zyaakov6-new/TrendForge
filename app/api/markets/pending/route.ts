@@ -57,8 +57,10 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category")  ?? undefined;
   const search   = searchParams.get("search")    ?? undefined;
 
-  const markets = store.getAll({ status, category, search });
-  const counts  = store.counts();
+  const [markets, counts] = await Promise.all([
+    store.getAll({ status, category, search }),
+    store.counts(),
+  ]);
 
   return NextResponse.json({ markets, counts, total: markets.length });
 }
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
     submittedBy: cleanAddress,
   };
 
-  store.add(pending);
+  await store.add(pending);
 
   return NextResponse.json({ id: pending.id, market: pending }, { status: 201 });
 }
