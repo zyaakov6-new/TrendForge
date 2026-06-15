@@ -200,6 +200,16 @@ export const CTF_ABI = [
     ],
     outputs: [{ type: "uint256" }],
   },
+  {
+    name: "reportPayouts",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "questionId", type: "bytes32" },
+      { name: "payouts",    type: "uint256[]" },
+    ],
+    outputs: [],
+  },
   // ERC-1155 approval — required before the Exchange can transfer outcome tokens on SELL orders
   {
     name: "isApprovedForAll",
@@ -281,6 +291,7 @@ export const CTF_EXCHANGE_ABI = [
           { name: "feeRateBps",    type: "uint256" },
           { name: "side",          type: "uint8" },
           { name: "signatureType", type: "uint8" },
+          { name: "signature",     type: "bytes" },
         ],
       },
       { name: "fillAmount", type: "uint256" },

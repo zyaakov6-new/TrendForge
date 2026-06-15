@@ -24,8 +24,10 @@ export interface Market {
   liquidity: number;
   description?: string;
   // CLOB token IDs — populated when market comes from Gamma API
-  yesTokenId?: string;
-  noTokenId?:  string;
+  yesTokenId?:  string;
+  noTokenId?:   string;
+  // On-chain IDs — populated for AI-generated markets after publishing
+  conditionId?: string;
 }
 
 export interface Position {

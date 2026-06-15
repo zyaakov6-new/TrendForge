@@ -20,6 +20,10 @@ import {
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
 import { useCreateMarket } from "@/hooks/useCreateMarket";
+import { useSeedLiquidity } from "@/hooks/useSeedLiquidity";
+import { useWriteContract, useChainId } from "wagmi";
+import { CTF_ABI } from "@/lib/abis";
+import { getAddresses } from "@/lib/contracts";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import type { PendingMarket, ModerationStatus } from "@/types/pending-market";
@@ -344,6 +348,275 @@ function Confetti() {
   );
 }
 
+// ─── Seed Liquidity Dialog ────────────────────────────────────────────────────
+
+function SeedLiquidityDialog({
+  market,
+  onClose,
+  adminWallet,
+}: {
+  market:      PendingMarket;
+  onClose:     () => void;
+  adminWallet: string;
+}) {
+  const [yesLiq,  setYesLiq]  = useState(200);
+  const [noLiq,   setNoLiq]   = useState(200);
+  const [spread,  setSpread]  = useState(2);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const seed = useSeedLiquidity(adminWallet as `0x${string}`);
+
+  async function handleSeed() {
+    if (!market.conditionId || !market.yesTokenId || !market.noTokenId) {
+      toast.error("Market is missing token IDs — re-publish to generate them.");
+      return;
+    }
+    await seed.seed({
+      conditionId:  market.conditionId,
+      yesTokenId:   market.yesTokenId,
+      noTokenId:    market.noTokenId,
+      yesPrice:     market.yesPrice / 100,
+      yesLiquidity: yesLiq,
+      noLiquidity:  noLiq,
+      spread:       spread / 100,
+    });
+  }
+
+  useEffect(() => {
+    if (seed.step === "done") {
+      toast.success("Liquidity seeded — market is now tradable!");
+      onClose();
+      seed.reset();
+    }
+    if (seed.step === "error") {
+      toast.error(seed.error ?? "Seeding failed");
+      seed.reset();
+    }
+  }, [seed.step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!mounted) return null;
+
+  const busy = seed.step !== "idle" && seed.step !== "done" && seed.step !== "error";
+
+  return createPortal(
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[9998]" onClick={onClose} />
+      <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }}
+          className="w-full max-w-md rounded-2xl border border-cyan-500/25 bg-[#0d0b1a] p-6 shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Seed Liquidity</h3>
+              <p className="text-xs text-white/35 line-clamp-1">{market.question}</p>
+            </div>
+            <button onClick={onClose} className="ml-auto p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4 mb-5">
+            <div className="rounded-xl bg-white/[0.025] border border-white/6 p-3 text-xs text-white/50 leading-relaxed">
+              You will sign two sell orders (YES + NO) with your wallet. Users fill them directly on-chain. The spread is your revenue.
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/35 mb-1.5">YES tokens (USDC)</label>
+                <input type="number" min={50} value={yesLiq}
+                  onChange={e => setYesLiq(Number(e.target.value))}
+                  className="w-full rounded-xl border border-white/8 bg-[#0c0c1f] px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500/40 transition-colors"
+                  style={{ color: "white" }}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/35 mb-1.5">NO tokens (USDC)</label>
+                <input type="number" min={50} value={noLiq}
+                  onChange={e => setNoLiq(Number(e.target.value))}
+                  className="w-full rounded-xl border border-white/8 bg-[#0c0c1f] px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500/40 transition-colors"
+                  style={{ color: "white" }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-white/35 mb-1.5">
+                Spread (¢) — your fee per trade
+              </label>
+              <input type="number" min={0} max={10} step={0.5} value={spread}
+                onChange={e => setSpread(Number(e.target.value))}
+                className="w-full rounded-xl border border-white/8 bg-[#0c0c1f] px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500/40 transition-colors"
+                style={{ color: "white" }}
+              />
+            </div>
+
+            <div className="rounded-xl bg-emerald-500/8 border border-emerald-500/20 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-white/40">YES sell price</span>
+                <span className="text-emerald-400 font-mono font-bold">{Math.min(99, market.yesPrice + spread / 2).toFixed(1)}¢</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">NO sell price</span>
+                <span className="text-emerald-400 font-mono font-bold">{Math.min(99, (100 - market.yesPrice) + spread / 2).toFixed(1)}¢</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Total USDC locked</span>
+                <span className="text-white font-mono font-bold">${yesLiq + noLiq}</span>
+              </div>
+            </div>
+          </div>
+
+          {busy && (
+            <div className="mb-3 rounded-xl bg-cyan-500/8 border border-cyan-500/20 px-3 py-2.5 flex items-center gap-2 text-xs text-cyan-400 font-semibold">
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}>
+                <RefreshCw className="w-3.5 h-3.5" />
+              </motion.div>
+              {seed.stepLabel}
+            </div>
+          )}
+
+          <div className="flex gap-2.5">
+            <button onClick={handleSeed} disabled={busy}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-cyan-500/15 border border-cyan-500/30 py-2.5 text-sm font-bold text-cyan-400 hover:bg-cyan-500/25 transition-all disabled:opacity-40"
+            >
+              <Zap className="w-4 h-4" />
+              {busy ? seed.stepLabel : "Seed Liquidity"}
+            </button>
+            <button onClick={onClose} disabled={busy}
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white/40 hover:text-white transition-all disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
+// ─── Resolve Market Dialog ────────────────────────────────────────────────────
+
+function ResolveDialog({
+  market,
+  onClose,
+  onResolved,
+}: {
+  market:     PendingMarket;
+  onClose:    () => void;
+  onResolved: () => void;
+}) {
+  const [outcome, setOutcome] = useState<"YES" | "NO" | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const chainId   = useChainId();
+  const contracts = getAddresses(chainId);
+  const { writeContractAsync } = useWriteContract();
+  const [busy, setBusy] = useState(false);
+
+  async function handleResolve() {
+    if (!outcome || !market.questionId) return;
+    setBusy(true);
+    try {
+      // YES wins: payouts = [1, 0] (slot 0 = YES gets everything)
+      // NO  wins: payouts = [0, 1] (slot 1 = NO gets everything)
+      const payouts: [bigint, bigint] = outcome === "YES" ? [1n, 0n] : [0n, 1n];
+
+      await writeContractAsync({
+        address:      contracts.CTF,
+        abi:          CTF_ABI,
+        functionName: "reportPayouts",
+        args:         [market.questionId as `0x${string}`, payouts],
+      });
+
+      toast.success(`Market resolved ${outcome}! Winners can now redeem.`);
+      onResolved();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Resolution failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!mounted) return null;
+  if (!market.questionId) return null;
+
+  return createPortal(
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[9998]" onClick={onClose} />
+      <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+        <motion.div initial={{ opacity: 0, scale: 0.95, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 8 }}
+          className="w-full max-w-sm rounded-2xl border border-violet-500/25 bg-[#0d0b1a] p-6 shadow-2xl"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
+              <CheckCircle className="w-4 h-4 text-violet-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Resolve Market</h3>
+              <p className="text-xs text-white/35 line-clamp-1">{market.question}</p>
+            </div>
+            <button onClick={onClose} className="ml-auto p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-xs text-white/40 mb-4 leading-relaxed">
+            This calls <span className="font-mono text-white/60">CTF.reportPayouts()</span> on-chain. Winners can then redeem 1 USDC per winning share. This action is irreversible.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <button onClick={() => setOutcome("YES")}
+              className={`rounded-xl border py-3 text-sm font-black transition-all ${
+                outcome === "YES"
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
+                  : "border-white/10 text-white/40 hover:text-white"
+              }`}
+            >
+              YES wins
+            </button>
+            <button onClick={() => setOutcome("NO")}
+              className={`rounded-xl border py-3 text-sm font-black transition-all ${
+                outcome === "NO"
+                  ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
+                  : "border-white/10 text-white/40 hover:text-white"
+              }`}
+            >
+              NO wins
+            </button>
+          </div>
+
+          <div className="flex gap-2.5">
+            <button onClick={handleResolve} disabled={!outcome || busy}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-violet-500/15 border border-violet-500/30 py-2.5 text-sm font-bold text-violet-400 hover:bg-violet-500/25 transition-all disabled:opacity-40"
+            >
+              {busy ? <><motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}><RefreshCw className="w-3.5 h-3.5" /></motion.span> Resolving...</> : "Confirm Resolution"}
+            </button>
+            <button onClick={onClose} disabled={busy}
+              className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-white/40 hover:text-white transition-all disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>,
+    document.body
+  );
+}
+
 // ─── Market Card ──────────────────────────────────────────────────────────────
 
 function MarketCard({
@@ -352,14 +625,18 @@ function MarketCard({
   onApprove,
   onReject,
   onEdit,
+  onSeedLiquidity,
+  onResolve,
   adminWallet,
 }: {
-  market:      PendingMarket;
-  isApproving: boolean;
-  onApprove:   (m: PendingMarket) => void;
-  onReject:    (m: PendingMarket) => void;
-  onEdit:      (m: PendingMarket) => void;
-  adminWallet: string;
+  market:          PendingMarket;
+  isApproving:     boolean;
+  onApprove:       (m: PendingMarket) => void;
+  onReject:        (m: PendingMarket) => void;
+  onEdit:          (m: PendingMarket) => void;
+  onSeedLiquidity: (m: PendingMarket) => void;
+  onResolve:       (m: PendingMarket) => void;
+  adminWallet:     string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const catClass = CAT_COLORS[market.category] ?? CAT_COLORS.Finance;
@@ -590,17 +867,49 @@ function MarketCard({
         </div>
       )}
 
-      {/* Published footer — link to market */}
+      {/* Published footer — seed, resolve, view */}
       {isPub && market.conditionId && (
-        <div className="border-t border-emerald-500/15 px-5 py-3 flex items-center gap-2">
-          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+        <div className="border-t border-emerald-500/15 px-5 py-3 flex flex-wrap items-center gap-2">
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
           <span className="text-xs text-emerald-400/70 font-semibold">Live on Polygon</span>
-          <Link
-            href={`/markets/${market.conditionId}`}
-            className="ml-auto flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-          >
-            View Market <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Seed Liquidity */}
+            {market.yesTokenId && (
+              <button
+                onClick={() => onSeedLiquidity(market)}
+                className="flex items-center gap-1 rounded-lg border border-cyan-500/25 bg-cyan-500/8 px-2.5 py-1.5 text-[10px] font-bold text-cyan-400 hover:bg-cyan-500/18 transition-all"
+              >
+                <DollarSign className="w-3 h-3" />
+                Seed Liquidity
+              </button>
+            )}
+
+            {/* Resolve */}
+            {market.questionId && !market.resolved && (
+              <button
+                onClick={() => onResolve(market)}
+                className="flex items-center gap-1 rounded-lg border border-violet-500/25 bg-violet-500/8 px-2.5 py-1.5 text-[10px] font-bold text-violet-400 hover:bg-violet-500/18 transition-all"
+              >
+                <CheckCircle className="w-3 h-3" />
+                Resolve
+              </button>
+            )}
+            {market.resolved && (
+              <span className="text-[10px] font-bold text-white/30 flex items-center gap-1">
+                <CheckCircle className="w-3 h-3 text-emerald-400" />
+                Resolved {market.resolvedOutcome}
+              </span>
+            )}
+
+            {/* View market */}
+            <Link
+              href={`/markets/${market.conditionId}`}
+              className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+            >
+              View <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       )}
     </motion.div>
@@ -678,6 +987,8 @@ export default function ModeratePage() {
   const [search,       setSearch]       = useState("");
   const [rejectTarget, setRejectTarget] = useState<PendingMarket | null>(null);
   const [editTarget,   setEditTarget]   = useState<PendingMarket | null>(null);
+  const [seedTarget,   setSeedTarget]   = useState<PendingMarket | null>(null);
+  const [resolveTarget,setResolveTarget]= useState<PendingMarket | null>(null);
   const [approvingId,  setApprovingId]  = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -726,6 +1037,9 @@ export default function ModeratePage() {
           body: JSON.stringify({
             status:       "published",
             conditionId:  createMarket.conditionId ?? undefined,
+            questionId:   createMarket.questionId  ?? undefined,
+            yesTokenId:   createMarket.yesTokenId  ?? undefined,
+            noTokenId:    createMarket.noTokenId   ?? undefined,
             txHash:       createMarket.txHash ?? undefined,
             clobMarketId: createMarket.clobMarketId ?? undefined,
             reviewedBy:   address,
@@ -832,6 +1146,22 @@ export default function ModeratePage() {
             market={editTarget}
             onClose={() => setEditTarget(null)}
             onApprove={handleEditApprove}
+          />
+        )}
+        {seedTarget && (
+          <SeedLiquidityDialog
+            key="seed"
+            market={seedTarget}
+            adminWallet={address ?? ""}
+            onClose={() => setSeedTarget(null)}
+          />
+        )}
+        {resolveTarget && (
+          <ResolveDialog
+            key="resolve"
+            market={resolveTarget}
+            onClose={() => setResolveTarget(null)}
+            onResolved={() => { fetchMarkets(); setResolveTarget(null); }}
           />
         )}
       </AnimatePresence>
@@ -1020,6 +1350,8 @@ export default function ModeratePage() {
                   onApprove={handleApprove}
                   onReject={m => setRejectTarget(m)}
                   onEdit={m => setEditTarget(m)}
+                  onSeedLiquidity={m => setSeedTarget(m)}
+                  onResolve={m => setResolveTarget(m)}
                   adminWallet={address ?? ""}
                 />
               ))}

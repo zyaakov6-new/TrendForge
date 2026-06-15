@@ -30,8 +30,14 @@ export interface PendingMarket extends GeneratedMarket {
   rejectionReason?: string;
   /** Set when status = "published" (after on-chain tx) */
   conditionId?: string;
+  questionId?: string;   // bytes32 used in prepareCondition — needed for reportPayouts
+  yesTokenId?: string;   // ERC-1155 token ID for YES outcome
+  noTokenId?: string;    // ERC-1155 token ID for NO outcome
   txHash?: string;
   clobMarketId?: string;
+  resolved?: boolean;
+  resolvedOutcome?: "YES" | "NO";
+  resolvedAt?: string;
 }
 
 /**
@@ -45,8 +51,14 @@ export interface PendingMarketPatch {
   reviewedAt?: string;
   // On-chain publish result
   conditionId?: string;
+  questionId?: string;
+  yesTokenId?: string;
+  noTokenId?: string;
   txHash?: string;
   clobMarketId?: string;
+  resolved?: boolean;
+  resolvedOutcome?: "YES" | "NO";
+  resolvedAt?: string;
   // Editable AI fields
   question?: string;
   questionHe?: string | null;

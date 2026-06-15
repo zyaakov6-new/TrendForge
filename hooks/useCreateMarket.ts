@@ -42,9 +42,6 @@ import {
 import {
   keccak256,
   encodePacked,
-  encodeAbiParameters,
-  parseAbiParameters,
-  toHex,
 } from "viem";
 import type { Address } from "viem";
 import { CTF_ABI } from "@/lib/abis";
@@ -80,6 +77,8 @@ export interface CreateMarketState {
   progress:     number;          // 0-100
   conditionId:  string | null;
   questionId:   string | null;
+  yesTokenId:   string | null;
+  noTokenId:    string | null;
   txHash:       `0x${string}` | undefined;
   clobMarketId: string | null;
   error:        string | null;
@@ -118,6 +117,8 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
   const [step,         setStep]         = useState<CreateMarketStep>("idle");
   const [conditionId,  setConditionId]  = useState<string | null>(null);
   const [questionIdHex,setQuestionId]   = useState<string | null>(null);
+  const [yesTokenId,   setYesTokenId]   = useState<string | null>(null);
+  const [noTokenId,    setNoTokenId]    = useState<string | null>(null);
   const [clobMarketId, setClobMarketId] = useState<string | null>(null);
   const [error,        setError]        = useState<string | null>(null);
 
@@ -196,12 +197,18 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
       // Full description includes AI prefix, description, and resolution criteria
       const _fullDescription = `${aiPrefix}${params.description}\n\nResolution: ${params.resolutionCriteria}`;
 
+      // Use admin wallet as resolver so we can resolve markets manually.
+      // The oracle address is the ONLY address allowed to call CTF.reportPayouts().
+      const resolverAddress = (
+        process.env.NEXT_PUBLIC_ADMIN_WALLET ?? contracts.ORACLE
+      ) as Address;
+
       const txHash = await writeCtf({
         address:      contracts.CTF,
         abi:          CTF_ABI,
         functionName: "prepareCondition",
         args: [
-          contracts.ORACLE, // UMA Optimistic Oracle V3
+          resolverAddress,  // admin wallet — can call reportPayouts to resolve
           qId,              // unique questionId
           2n,               // 2 outcome slots: YES (index 0) and NO (index 1)
         ],
@@ -213,10 +220,7 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
       // Derive conditionId (deterministic, matches what CTF contract emits)
       // conditionId = keccak256(abi.encodePacked(oracle, questionId, outcomeSlots))
       const cId = keccak256(
-        encodeAbiParameters(
-          parseAbiParameters("address, bytes32, uint256"),
-          [contracts.ORACLE, qId, 2n]
-        )
+        encodePacked(["address", "bytes32", "uint256"], [resolverAddress, qId, 2n])
       );
       setConditionId(cId);
 
@@ -246,40 +250,30 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
       // --- Step 5: derive token IDs and register with CLOB ---
       setStep("registering_clob");
 
-      // YES collection: parentCollectionId=0, conditionId, indexSet=1
-      // NO  collection: parentCollectionId=0, conditionId, indexSet=2
-      // tokenId = keccak256(abi.encodePacked(collateralToken, collectionId))
+      // Gnosis CTF position ID derivation (exact formula from the contract):
+      //   collectionId = keccak256(encodePacked(conditionId, indexSet)) + parentCollectionId
+      //   positionId   = keccak256(encodePacked(collateralToken, collectionId))
       //
-      // For now we use a simplified derivation - full derivation requires
-      // calling CTF.getPositionId() on-chain or doing the math locally.
-      // TODO: call CTF.getPositionId() via viem readContract for accuracy
+      // parentCollectionId = 0 for root positions, so:
+      //   collectionId = keccak256(encodePacked(conditionId, indexSet))
+      //
+      // indexSet 1 = YES (first slot), indexSet 2 = NO (second slot)
       const yesCollectionId = keccak256(
-        encodeAbiParameters(
-          parseAbiParameters("bytes32, bytes32, uint256"),
-          [
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-            cId,
-            1n,
-          ]
-        )
+        encodePacked(["bytes32", "uint256"], [cId, 1n])
       );
       const noCollectionId = keccak256(
-        encodeAbiParameters(
-          parseAbiParameters("bytes32, bytes32, uint256"),
-          [
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-            cId,
-            2n,
-          ]
-        )
+        encodePacked(["bytes32", "uint256"], [cId, 2n])
       );
 
-      const yesTokenId = BigInt(
+      const yesTokenIdStr = BigInt(
         keccak256(encodePacked(["address", "bytes32"], [contracts.USDC, yesCollectionId]))
       ).toString();
-      const noTokenId = BigInt(
+      const noTokenIdStr = BigInt(
         keccak256(encodePacked(["address", "bytes32"], [contracts.USDC, noCollectionId]))
       ).toString();
+
+      setYesTokenId(yesTokenIdStr);
+      setNoTokenId(noTokenIdStr);
 
       const clobResult = await registerMarketWithClob(
         cId,
@@ -288,8 +282,8 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
         `${aiPrefix}${params.description}`,
         params.resolutionCriteria,
         params.endDate,
-        yesTokenId,
-        noTokenId,
+        yesTokenIdStr,
+        noTokenIdStr,
       );
 
       if (!clobResult.success) {
@@ -314,6 +308,8 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
     progress:  STEP_PROGRESS[step],
     conditionId,
     questionId: questionIdHex,
+    yesTokenId,
+    noTokenId,
     txHash:     ctfTxHash,
     clobMarketId,
     error,
@@ -322,6 +318,8 @@ export function useCreateMarket(creator: Address | undefined): CreateMarketState
       setStep("idle");
       setConditionId(null);
       setQuestionId(null);
+      setYesTokenId(null);
+      setNoTokenId(null);
       setClobMarketId(null);
       setError(null);
       resetCtfWrite();

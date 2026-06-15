@@ -37,6 +37,8 @@ import { toUSDCUnits } from "@/lib/contracts";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { toast } from "sonner";
 import { useKuestMarket, useMarketLivePrices } from "@/hooks/useKuestMarkets";
+import { useQuery } from "@tanstack/react-query";
+import type { StoredOrder } from "@/lib/order-store";
 
 // ─── Extended mock data ───────────────────────────────────────────────────────
 
@@ -806,8 +808,37 @@ function TradeConfirmDialog({
   );
 }
 
+// Fetch best maker order for a given outcome side (only for TrendForge AI markets)
+function useMakerOrder(conditionId: string | undefined, side: "YES" | "NO") {
+  return useQuery<StoredOrder | null>({
+    queryKey:  ["maker-order", conditionId, side],
+    enabled:   !!conditionId,
+    queryFn:   async () => {
+      if (!conditionId) return null;
+      const res = await fetch(`/api/clob/orders?conditionId=${conditionId}&side=${side}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.order ?? null;
+    },
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+}
+
 // Trading Panel
-function TradingPanel({ market, userPosition }: { market: Market; userPosition: typeof POSITIONS[0] | null }) {
+function TradingPanel({
+  market,
+  userPosition,
+  conditionId,
+  yesTokenId,
+  noTokenId,
+}: {
+  market:       Market;
+  userPosition: typeof POSITIONS[0] | null;
+  conditionId?: string;
+  yesTokenId?:  string;
+  noTokenId?:   string;
+}) {
   const [side, setSide] = useState<"YES" | "NO">("YES");
   const [amount, setAmount] = useState(50);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -815,6 +846,11 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
   // Real wallet state
   const { address, isConnected } = useWallet();
   const { formatted: displayBalance } = useUSDCBalance(address);
+
+  // Fetch admin's pre-signed maker orders for this market (TrendForge AI markets)
+  const { data: yesMakerOrder } = useMakerOrder(conditionId, "YES");
+  const { data: noMakerOrder  } = useMakerOrder(conditionId, "NO");
+  const hasLiquidity = !!(yesMakerOrder || noMakerOrder);
 
   // Real CLOB trade hook
   const requiredUsdc = toUSDCUnits(amount);
@@ -843,21 +879,24 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
     setConfirmOpen(true);
   };
 
-  // Step 2: user confirmed - execute real CLOB order
+  // Step 2: user confirmed - execute trade
   const handleConfirm = async () => {
     setConfirmOpen(false);
 
-    // market.id is the conditionId on real Kuest markets
-    // clobTokenIds[0] = YES token, clobTokenIds[1] = NO token
-    // TODO: pass real token IDs from GammaMarket.clobTokenIds when using live data
-    const tokenId = side === "YES" ? market.id + "_yes" : market.id + "_no";
+    // For TrendForge AI markets: use real token IDs + admin maker order
+    // For Polymarket/Gamma markets: fall back to CLOB API path
+    const makerOrder = side === "YES" ? yesMakerOrder : noMakerOrder;
+    const tokenId    = side === "YES"
+      ? (yesTokenId ?? market.yesTokenId ?? market.id + "_yes")
+      : (noTokenId  ?? market.noTokenId  ?? market.id + "_no");
 
     await trade.placeTrade({
-      conditionId:   market.id,
+      conditionId:   conditionId ?? market.conditionId ?? market.id,
       tokenId,
       amountUSDC:    amount,
       pricePerShare: price,
       side,
+      makerOrder:    makerOrder ?? undefined,
     });
 
     if (trade.step === "filled") {
@@ -1073,11 +1112,18 @@ function TradingPanel({ market, userPosition }: { market: Market; userPosition: 
           </motion.button>
         )}
 
+        {/* No-liquidity notice for AI markets that haven't been seeded yet */}
+        {conditionId && !hasLiquidity && (
+          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-400/80">
+            Liquidity being seeded — trading opens shortly.
+          </div>
+        )}
+
         {/* Place Trade button */}
         {isConnected ? (
           <motion.button
             onClick={handleTrade}
-            disabled={tradeState !== "idle" || trade.needsApproval}
+            disabled={tradeState !== "idle" || trade.needsApproval || (!!conditionId && !hasLiquidity)}
             whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
             whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
             className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${
@@ -1137,6 +1183,18 @@ export default function MarketDetailPage() {
 
   // Real market data — falls back to mock on API error
   const { data: fetchedMarket, isLoading: marketLoading } = useKuestMarket(id);
+
+  // Also check our own published markets (AI-generated markets live here)
+  const { data: ownMarket } = useQuery({
+    queryKey:  ["own-market", id],
+    queryFn:   async () => {
+      const res = await fetch(`/api/markets/pending/${id}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.market ?? null;
+    },
+    staleTime: 60_000,
+  });
   const market: Market = fetchedMarket ?? MARKETS.find(m => m.id === id) ?? MARKETS[0];
 
   const analysis = getClaudeAnalysis(id);
@@ -1402,7 +1460,13 @@ export default function MarketDetailPage() {
           transition={{ delay: 0.15 }}
           className="relative"
         >
-          <TradingPanel market={{ ...market, yesPrice: liveYes }} userPosition={userPosition} />
+          <TradingPanel
+            market={{ ...market, yesPrice: liveYes }}
+            userPosition={userPosition}
+            conditionId={ownMarket?.conditionId}
+            yesTokenId={ownMarket?.yesTokenId}
+            noTokenId={ownMarket?.noTokenId}
+          />
 
           {/* Share + Links */}
           <div className="mt-4 flex gap-2">

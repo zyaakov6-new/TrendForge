@@ -27,11 +27,13 @@
  *   This is pure protocol revenue - no Polymarket cut if using Kuest fork.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   useSignTypedData,
   useChainId,
   useWatchContractEvent,
+  useWriteContract,
+  useWaitForTransactionReceipt,
 } from "wagmi";
 import type { Address } from "viem";
 import { CTF_EXCHANGE_ABI, ORDER_TYPES, SIDE } from "@/lib/abis";
@@ -39,6 +41,7 @@ import { getAddresses, toUSDCUnits, CTF_EXCHANGE_DOMAIN } from "@/lib/contracts"
 import { buildLimitOrder, submitOrder } from "@/lib/clob";
 import { useUSDCApproval, useCTFApproval } from "./useApproval";
 import { useUSDCBalance } from "./useUSDCBalance";
+import type { StoredOrder } from "@/lib/order-store";
 
 // ---- Types ------------------------------------------------------------------
 
@@ -60,6 +63,12 @@ export interface TradeParams {
    * Defaults to "BUY". SELL requires CTF ERC-1155 setApprovalForAll; BUY requires USDC approval.
    */
   action?: "BUY" | "SELL";
+  /**
+   * When set, trade executes via CTF Exchange.fillOrder() against this pre-signed maker order.
+   * Used for TrendForge AI-generated markets where admin is the market maker.
+   * When absent, falls back to submitting a limit order to the CLOB API.
+   */
+  makerOrder?: StoredOrder;
 }
 
 export type TradeStep =
@@ -128,10 +137,22 @@ export function useTrade(
   // CTF ERC-1155 approval (needed for SELL orders — Exchange transfers outcome tokens)
   const ctfApproval = useCTFApproval(trader);
 
-  // EIP-712 signing
+  // EIP-712 signing (used for CLOB-API path)
   const { signTypedDataAsync, reset: resetSign } = useSignTypedData();
 
-  // Watch for OrderFilled event to confirm our order
+  // Direct on-chain fillOrder (used for TrendForge AI markets)
+  const { writeContractAsync, reset: resetWrite } = useWriteContract();
+  const [fillTxHash, setFillTxHash] = useState<`0x${string}` | undefined>();
+  const { isSuccess: fillConfirmed } = useWaitForTransactionReceipt({ hash: fillTxHash, query: { enabled: !!fillTxHash } });
+
+  // Confirm fillOrder tx
+  useEffect(() => {
+    if (fillConfirmed && step === "pending_fill") {
+      setStep("filled");
+    }
+  }, [fillConfirmed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Watch for OrderFilled event to confirm our order (CLOB path)
   useWatchContractEvent({
     address:   contracts.EXCHANGE,
     abi:       CTF_EXCHANGE_ABI,
@@ -192,80 +213,111 @@ export function useTrade(
         });
       }
 
-      // --- Step 2: Build order ---
-      // BUY:  makerAmount=USDC paid,   takerAmount=shares received, side=BUY
-      // SELL: makerAmount=shares given, takerAmount=USDC received,  side=SELL
-      const clobSide = action === "SELL" ? SIDE.SELL : SIDE.BUY;
+      if (params.makerOrder) {
+        // ── Path A: fillOrder directly against admin's pre-signed order ──────
+        // Used for TrendForge AI-generated markets.
+        // User is taker; admin's signed SELL order is the maker.
+        setStep("signing"); // label shown: "Sign order in wallet..."
 
-      const order = buildLimitOrder(
-        trader,
-        params.tokenId,
-        params.amountUSDC,
-        params.pricePerShare,
-        clobSide,
-      );
+        const mo = params.makerOrder;
 
-      // --- Step 3: Sign the order (EIP-712 wallet prompt) ---
-      setStep("signing");
+        // fillAmount = how many maker tokens (YES/NO shares) to fill.
+        // For a SELL order: makerAmount = shares, takerAmount = USDC.
+        // User wants to spend amountUSDC, so shares = amountUSDC / price.
+        const fillAmount = BigInt(
+          Math.round((params.amountUSDC / params.pricePerShare) * 10 ** 6)
+        );
 
-      const domain = CTF_EXCHANGE_DOMAIN(chainId);
+        setStep("submitting");
 
-      // Prepare message for signTypedData (bigint -> string for wagmi)
-      const message = {
-        salt:          order.salt,
-        maker:         order.maker,
-        signer:        order.signer,
-        taker:         order.taker,
-        tokenId:       order.tokenId,
-        makerAmount:   order.makerAmount,
-        takerAmount:   order.takerAmount,
-        expiration:    order.expiration,
-        nonce:         order.nonce,
-        feeRateBps:    order.feeRateBps,
-        side:          order.side,
-        signatureType: order.signatureType,
-      };
+        const txHash = await writeContractAsync({
+          address:      contracts.EXCHANGE,
+          abi:          CTF_EXCHANGE_ABI,
+          functionName: "fillOrder",
+          args: [
+            {
+              salt:          BigInt(mo.salt),
+              maker:         mo.maker         as Address,
+              signer:        mo.signer        as Address,
+              taker:         mo.taker         as Address,
+              tokenId:       BigInt(mo.tokenId),
+              makerAmount:   BigInt(mo.makerAmount),
+              takerAmount:   BigInt(mo.takerAmount),
+              expiration:    BigInt(mo.expiration),
+              nonce:         BigInt(mo.nonce),
+              feeRateBps:    BigInt(mo.feeRateBps),
+              side:          mo.side          as 0 | 1,
+              signatureType: mo.signatureType as 0 | 1 | 2,
+              signature:     mo.signature     as `0x${string}`,
+            },
+            fillAmount,
+          ],
+        });
 
-      const signature = await signTypedDataAsync({
-        domain,
-        types:   ORDER_TYPES,
-        primaryType: "Order",
-        message,
-      });
-
-      // --- Step 4: Submit to CLOB ---
-      setStep("submitting");
-
-      const result = await submitOrder(
-        { ...order, signature },
-        chainId,
-      );
-
-      if (!result.success) {
-        throw new Error(result.errorMsg ?? "Order submission failed");
-      }
-
-      setOrderId(result.orderId ?? null);
-      setOrderStatus(result.status ?? null);
-
-      // If matched immediately, we're done
-      if (result.status === "matched") {
-        setSharesReceived(params.amountUSDC / params.pricePerShare);
-        setStep("filled");
-      } else {
-        // Order resting in book, wait for fill event
+        setFillTxHash(txHash);
+        setSharesReceived(Number(fillAmount) / 1e6);
         setStep("pending_fill");
-        // Timeout after 30s - show pending state to user
-        setTimeout(() => {
-          setStep((current) => {
-            if (current === "pending_fill") {
-              // Still pending - show as placed but unfilled
-              setSharesReceived(params.amountUSDC / params.pricePerShare);
-              return "filled";
-            }
-            return current;
-          });
-        }, 30_000);
+
+      } else {
+        // ── Path B: EIP-712 sign → submit to CLOB API (Polymarket / Kuest) ──
+        const clobSide = action === "SELL" ? SIDE.SELL : SIDE.BUY;
+
+        const order = buildLimitOrder(
+          trader,
+          params.tokenId,
+          params.amountUSDC,
+          params.pricePerShare,
+          clobSide,
+        );
+
+        setStep("signing");
+
+        const domain = CTF_EXCHANGE_DOMAIN(chainId);
+        const message = {
+          salt:          order.salt,
+          maker:         order.maker,
+          signer:        order.signer,
+          taker:         order.taker,
+          tokenId:       order.tokenId,
+          makerAmount:   order.makerAmount,
+          takerAmount:   order.takerAmount,
+          expiration:    order.expiration,
+          nonce:         order.nonce,
+          feeRateBps:    order.feeRateBps,
+          side:          order.side,
+          signatureType: order.signatureType,
+        };
+
+        const signature = await signTypedDataAsync({
+          domain, types: ORDER_TYPES, primaryType: "Order", message,
+        });
+
+        setStep("submitting");
+
+        const result = await submitOrder({ ...order, signature }, chainId);
+
+        if (!result.success) {
+          throw new Error(result.errorMsg ?? "Order submission failed");
+        }
+
+        setOrderId(result.orderId ?? null);
+        setOrderStatus(result.status ?? null);
+
+        if (result.status === "matched") {
+          setSharesReceived(params.amountUSDC / params.pricePerShare);
+          setStep("filled");
+        } else {
+          setStep("pending_fill");
+          setTimeout(() => {
+            setStep(current => {
+              if (current === "pending_fill") {
+                setSharesReceived(params.amountUSDC / params.pricePerShare);
+                return "filled";
+              }
+              return current;
+            });
+          }, 30_000);
+        }
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -297,7 +349,9 @@ export function useTrade(
       setOrderId(null);
       setOrderStatus(null);
       setSharesReceived(0);
+      setFillTxHash(undefined);
       resetSign();
+      resetWrite();
       approval.reset();
       ctfApproval.reset();
     },
