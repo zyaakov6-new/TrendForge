@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * TrendForge — AI-Powered Prediction Market Platform
- * meta title: "TrendForge | AI Prediction Markets from X Trends"
- * meta description: "Claude AI scans real-time X trends and Israeli news to instantly create tradable prediction markets. Trade the future in seconds."
- */
-
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "framer-motion";
@@ -120,43 +114,61 @@ const FEATURES = [
     icon: Brain,
     title: "Instant AI Market Creation",
     description: "Claude scans X trends every 60 seconds and auto-drafts perfectly-worded prediction markets ready to publish.",
-    gradient: "from-cyan-500/20 to-blue-500/20",
-    border: "border-cyan-500/30",
+    gradient: "from-cyan-500/15 to-blue-500/10",
+    border: "border-cyan-500/25",
+    iconColor: "text-cyan-400",
+    iconBg: "bg-cyan-500/10 border-cyan-500/30",
+    glow: "shadow-cyan-500/20",
   },
   {
     icon: Activity,
     title: "Real-time X Sentiment",
     description: "Live sentiment analysis across 10k+ X posts per topic. Markets move before mainstream news catches up.",
-    gradient: "from-purple-500/20 to-pink-500/20",
-    border: "border-purple-500/30",
+    gradient: "from-purple-500/15 to-pink-500/10",
+    border: "border-purple-500/25",
+    iconColor: "text-purple-400",
+    iconBg: "bg-purple-500/10 border-purple-500/30",
+    glow: "shadow-purple-500/20",
   },
   {
     icon: Globe,
     title: "Hebrew + English Markets",
     description: "First prediction market built natively for Israeli users. Full RTL support, Hebrew market questions.",
-    gradient: "from-blue-500/20 to-indigo-500/20",
-    border: "border-blue-500/30",
+    gradient: "from-blue-500/15 to-indigo-500/10",
+    border: "border-blue-500/25",
+    iconColor: "text-blue-400",
+    iconBg: "bg-blue-500/10 border-blue-500/30",
+    glow: "shadow-blue-500/20",
   },
   {
     icon: Layers,
     title: "Shared Liquidity Pool",
     description: "Fork of Polymarket's AMM with shared liquidity. Deep order books from day one via Kuest protocol.",
-    gradient: "from-emerald-500/20 to-teal-500/20",
-    border: "border-emerald-500/30",
+    gradient: "from-emerald-500/15 to-teal-500/10",
+    border: "border-emerald-500/25",
+    iconColor: "text-emerald-400",
+    iconBg: "bg-emerald-500/10 border-emerald-500/30",
+    glow: "shadow-emerald-500/20",
   },
   {
     icon: Zap,
     title: "Lightning Polygon Trading",
     description: "Sub-second trades on Polygon PoS. $0.001 gas fees. USDC settlement. No KYC for under $500.",
-    gradient: "from-yellow-500/20 to-orange-500/20",
-    border: "border-yellow-500/30",
+    gradient: "from-yellow-500/15 to-orange-500/10",
+    border: "border-yellow-500/25",
+    iconColor: "text-yellow-400",
+    iconBg: "bg-yellow-500/10 border-yellow-500/30",
+    glow: "shadow-yellow-500/20",
   },
   {
     icon: Shield,
     title: "Community Governance",
     description: "One-click approval flow. Community validators ensure quality before markets go live. Zero spam.",
-    gradient: "from-rose-500/20 to-red-500/20",
-    border: "border-rose-500/30",
+    gradient: "from-rose-500/15 to-red-500/10",
+    border: "border-rose-500/25",
+    iconColor: "text-rose-400",
+    iconBg: "bg-rose-500/10 border-rose-500/30",
+    glow: "shadow-rose-500/20",
   },
 ];
 
@@ -167,7 +179,9 @@ const HOW_IT_WORKS = [
     title: "Trend Detected",
     description: "Claude monitors X, Israeli news, and Telegram channels in real-time. A topic spikes.",
     color: "text-cyan-400",
-    glow: "shadow-cyan-500/20",
+    accentColor: "cyan",
+    borderColor: "border-cyan-500/40",
+    glowColor: "rgba(6,182,212,0.15)",
   },
   {
     step: "02",
@@ -175,7 +189,9 @@ const HOW_IT_WORKS = [
     title: "AI Writes the Market",
     description: "Claude analyzes context, writes a sharp binary question, sets resolve conditions and deadline.",
     color: "text-violet-400",
-    glow: "shadow-violet-500/20",
+    accentColor: "violet",
+    borderColor: "border-violet-500/40",
+    glowColor: "rgba(139,92,246,0.15)",
   },
   {
     step: "03",
@@ -183,7 +199,9 @@ const HOW_IT_WORKS = [
     title: "One-Click Approval",
     description: "Community validators review in 30 seconds. One click. Market goes live immediately.",
     color: "text-emerald-400",
-    glow: "shadow-emerald-500/20",
+    accentColor: "emerald",
+    borderColor: "border-emerald-500/40",
+    glowColor: "rgba(52,211,153,0.15)",
   },
   {
     step: "04",
@@ -191,8 +209,21 @@ const HOW_IT_WORKS = [
     title: "Trade with USDC",
     description: "Instant liquidity on Polygon. Trade Yes/No shares. Profit when reality confirms your thesis.",
     color: "text-orange-400",
-    glow: "shadow-orange-500/20",
+    accentColor: "orange",
+    borderColor: "border-orange-500/40",
+    glowColor: "rgba(251,146,60,0.15)",
   },
+];
+
+const TRUST_ITEMS = [
+  { icon: DollarSign, text: "$2.4M Traded" },
+  { icon: Users, text: "18K Active Traders" },
+  { icon: Cpu, text: "Backed by Claude AI" },
+  { icon: Globe, text: "Hebrew + English" },
+  { icon: Zap, text: "Polygon Network" },
+  { icon: Star, text: "Community Governed" },
+  { icon: Shield, text: "No KYC Under $500" },
+  { icon: Activity, text: "Real-time Sentiment" },
 ];
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
@@ -205,7 +236,7 @@ function GlowOrb({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "pointer-events-none absolute rounded-full blur-[120px] opacity-30",
+        "pointer-events-none absolute rounded-full blur-[120px] opacity-25",
         className
       )}
     />
@@ -228,7 +259,7 @@ function NoiseBg() {
 function GridLines() {
   return (
     <div
-      className="pointer-events-none absolute inset-0 opacity-[0.04]"
+      className="pointer-events-none absolute inset-0 opacity-[0.035]"
       style={{
         backgroundImage: `
           linear-gradient(rgba(0,230,255,1) 1px, transparent 1px),
@@ -240,25 +271,34 @@ function GridLines() {
   );
 }
 
+// ─── Probability Bar — redesigned with split YES/NO price display ─────────────
 function MarketProbabilityBar({ yes, no }: { yes: number; no: number }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-xs font-mono">
-        <span className="text-emerald-400">YES {yes}¢</span>
-        <span className="text-rose-400">NO {no}¢</span>
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-emerald-950/70 border border-emerald-500/20 px-3 py-2.5 text-center">
+          <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-emerald-600 mb-0.5">YES</p>
+          <p className="text-xl font-black font-mono text-emerald-400 leading-none tabular-nums">{yes}¢</p>
+        </div>
+        <div className="rounded-xl bg-rose-950/70 border border-rose-500/20 px-3 py-2.5 text-center">
+          <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-rose-600 mb-0.5">NO</p>
+          <p className="text-xl font-black font-mono text-rose-400 leading-none tabular-nums">{no}¢</p>
+        </div>
       </div>
-      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+      <div className="relative h-1 rounded-full overflow-hidden flex">
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+          className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 shrink-0"
           initial={{ width: 0 }}
           animate={{ width: `${yes}%` }}
           transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
         />
+        <div className="flex-1 bg-rose-900/50" />
       </div>
     </div>
   );
 }
 
+// ─── Market Card ─────────────────────────────────────────────────────────────
 function TrendingMarketCard({ market, index }: { market: MarketCard; index: number }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-50px" });
@@ -269,26 +309,26 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
       initial={{ opacity: 0, y: 30 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      whileHover={{ y: -4, scale: 1.01 }}
-      className="group relative rounded-2xl border border-white/8 bg-white/[0.03] p-5 backdrop-blur-md cursor-pointer overflow-hidden transition-all duration-300 hover:border-cyan-500/40 hover:bg-white/[0.06] hover:shadow-lg hover:shadow-cyan-500/10"
+      whileHover={{ y: -4 }}
+      className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 backdrop-blur-md cursor-pointer overflow-hidden transition-all duration-300 hover:border-cyan-500/35 hover:bg-white/[0.05] hover:shadow-xl hover:shadow-cyan-500/8"
     >
-      {/* Glow on hover */}
-      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-cyan-500/5 to-transparent pointer-events-none" />
+      {/* Hover glow */}
+      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-cyan-500/[0.04] via-transparent to-transparent pointer-events-none" />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex flex-wrap gap-1.5">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/50">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/45">
             {market.category}
           </span>
           {market.aiGenerated && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-400 shadow-sm shadow-cyan-500/20">
+            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-400">
               <Sparkles className="w-2.5 h-2.5" />
               AI
             </span>
           )}
           {market.trending && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/35 bg-orange-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-400">
               <TrendingUp className="w-2.5 h-2.5" />
               Hot
             </span>
@@ -296,8 +336,10 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
         </div>
         <span
           className={cn(
-            "shrink-0 text-xs font-mono font-bold",
-            market.change > 0 ? "text-emerald-400" : "text-rose-400"
+            "shrink-0 rounded-md px-2 py-0.5 text-xs font-mono font-bold",
+            market.change > 0
+              ? "bg-emerald-500/10 text-emerald-400"
+              : "bg-rose-500/10 text-rose-400"
           )}
         >
           {market.change > 0 ? "+" : ""}{market.change}%
@@ -305,7 +347,7 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
       </div>
 
       {/* Question */}
-      <p className="mb-4 text-sm font-medium text-white/90 leading-relaxed line-clamp-2 font-['IBM_Plex_Mono',monospace]">
+      <p className="mb-4 text-sm font-semibold text-white/85 leading-relaxed line-clamp-2">
         {market.question}
       </p>
 
@@ -314,7 +356,7 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
 
       {/* Footer */}
       <div className="mt-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 text-xs text-white/40">
+        <div className="flex items-center gap-3 text-xs text-white/35 font-mono">
           <span className="flex items-center gap-1">
             <DollarSign className="w-3 h-3" />
             {market.volume}
@@ -324,7 +366,10 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
             {market.timeLeft}
           </span>
         </div>
-        <Link href={`/markets/${market.id}`} className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-400 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-sm hover:shadow-cyan-500/20">
+        <Link
+          href={`/markets/${market.id}`}
+          className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-bold text-cyan-400 transition-all hover:bg-cyan-500/20 hover:border-cyan-500/55 hover:shadow-sm hover:shadow-cyan-500/25"
+        >
           Trade <ArrowRight className="w-3 h-3" />
         </Link>
       </div>
@@ -332,6 +377,7 @@ function TrendingMarketCard({ market, index }: { market: MarketCard; index: numb
   );
 }
 
+// ─── Feature Card ─────────────────────────────────────────────────────────────
 function FeatureCard({ feature, index }: { feature: typeof FEATURES[0]; index: number }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
@@ -345,21 +391,31 @@ function FeatureCard({ feature, index }: { feature: typeof FEATURES[0]; index: n
       transition={{ duration: 0.5, delay: index * 0.08 }}
       whileHover={{ y: -3 }}
       className={cn(
-        "group relative rounded-2xl border p-6 backdrop-blur-md transition-all duration-300",
+        "group relative rounded-2xl border p-6 backdrop-blur-md transition-all duration-300 overflow-hidden",
         `bg-gradient-to-br ${feature.gradient}`,
         feature.border,
-        "hover:border-opacity-60 hover:shadow-lg"
+        "hover:shadow-lg",
+        `hover:${feature.glow}`
       )}
     >
-      <div className={cn("mb-4 inline-flex rounded-xl bg-white/5 p-3 border", feature.border)}>
-        <Icon className="w-5 h-5 text-white/80" />
+      {/* Inner card gloss */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent pointer-events-none" />
+
+      {/* Icon */}
+      <div className={cn(
+        "relative mb-5 inline-flex rounded-xl p-3 border",
+        feature.iconBg,
+      )} style={{ boxShadow: `0 0 20px 0px ${feature.glow.includes('cyan') ? 'rgba(6,182,212,0.2)' : feature.glow.includes('purple') ? 'rgba(168,85,247,0.2)' : feature.glow.includes('blue') ? 'rgba(59,130,246,0.2)' : feature.glow.includes('emerald') ? 'rgba(52,211,153,0.2)' : feature.glow.includes('yellow') ? 'rgba(234,179,8,0.2)' : 'rgba(244,63,94,0.2)'}` }}>
+        <Icon className={cn("w-5 h-5", feature.iconColor)} />
       </div>
-      <h3 className="mb-2 text-base font-bold text-white">{feature.title}</h3>
-      <p className="text-sm text-white/50 leading-relaxed">{feature.description}</p>
+
+      <h3 className="mb-2 text-base font-bold text-white/95">{feature.title}</h3>
+      <p className="text-sm text-white/45 leading-relaxed">{feature.description}</p>
     </motion.div>
   );
 }
 
+// ─── How It Works Step ────────────────────────────────────────────────────────
 function HowItWorksStep({ step, index }: { step: typeof HOW_IT_WORKS[0]; index: number }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
@@ -373,27 +429,43 @@ function HowItWorksStep({ step, index }: { step: typeof HOW_IT_WORKS[0]; index: 
       transition={{ duration: 0.5, delay: index * 0.12 }}
       className="relative flex flex-col items-center text-center"
     >
-      {/* Connector line */}
+      {/* Connector line — dashed, higher contrast */}
       {index < HOW_IT_WORKS.length - 1 && (
-        <div className="hidden lg:block absolute top-10 left-[calc(50%+48px)] right-[calc(-50%+48px)] h-px bg-gradient-to-r from-white/20 to-transparent" />
+        <div className="hidden lg:block absolute top-10 left-[calc(50%+52px)] right-[calc(-50%+52px)] h-px">
+          <div
+            className="w-full h-full opacity-30"
+            style={{
+              backgroundImage: "repeating-linear-gradient(90deg, rgba(148,163,184,0.6) 0, rgba(148,163,184,0.6) 6px, transparent 6px, transparent 14px)",
+            }}
+          />
+        </div>
       )}
 
-      {/* Step number badge */}
-      <div className="mb-4 relative">
+      {/* Badge */}
+      <div className="mb-5 relative">
+        {/* Outer glow ring */}
+        <div
+          className="absolute inset-0 rounded-2xl blur-md opacity-40 scale-110"
+          style={{ backgroundColor: step.glowColor }}
+        />
         <div className={cn(
-          "flex items-center justify-center w-20 h-20 rounded-2xl border bg-white/5 backdrop-blur",
-          `shadow-xl ${step.glow}`,
-          step.color.replace("text-", "border-").replace("-400", "-500/40")
+          "relative flex items-center justify-center w-20 h-20 rounded-2xl border bg-[#06060f] backdrop-blur",
+          step.borderColor
         )}>
-          <Icon className={cn("w-8 h-8", step.color)} />
+          <Icon className={cn("w-7 h-7", step.color)} />
         </div>
-        <span className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 border border-white/10 text-[10px] font-mono font-bold text-white/60">
-          {step.step}
+        {/* Step number — repositioned, more visible */}
+        <span className={cn(
+          "absolute -top-2.5 -right-2.5 flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-mono font-black bg-[#06060f]",
+          step.borderColor,
+          step.color
+        )}>
+          {index + 1}
         </span>
       </div>
 
-      <h3 className="mb-2 text-base font-bold text-white">{step.title}</h3>
-      <p className="max-w-[200px] text-sm text-white/45 leading-relaxed">{step.description}</p>
+      <h3 className="mb-2 text-sm font-bold text-white tracking-wide">{step.title}</h3>
+      <p className="max-w-[190px] text-xs text-white/40 leading-relaxed">{step.description}</p>
     </motion.div>
   );
 }
@@ -431,7 +503,7 @@ function HeroDemoAnimation() {
             className="absolute top-0 left-0 right-0 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shrink-0">
                 <span className="text-xs font-bold text-white">BB</span>
               </div>
               <div>
@@ -595,7 +667,7 @@ function GeneratorDemo() {
     : null;
 
   return (
-    <section className="relative py-28 px-4">
+    <section className="relative py-32 px-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <GlowOrb className="w-[600px] h-[600px] bg-violet-600 left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2" />
       </div>
@@ -612,13 +684,13 @@ function GeneratorDemo() {
             <Sparkles className="w-4 h-4" />
             Live Demo
           </div>
-          <h2 className="text-4xl md:text-5xl font-black text-white mb-4 leading-tight tracking-tight font-['Syne',sans-serif]">
+          <h2 className="text-4xl md:text-5xl font-black text-white mb-4 leading-tight tracking-tight">
             Watch Claude Forge a<br />
             <span className="bg-gradient-to-r from-violet-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
               Market Right Now
             </span>
           </h2>
-          <p className="text-white/50 text-base">
+          <p className="text-white/45 text-base">
             Type any topic or trend. Claude will generate a ready-to-publish prediction market instantly.
           </p>
         </motion.div>
@@ -628,7 +700,7 @@ function GeneratorDemo() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl"
+          className="rounded-2xl border border-white/10 bg-white/[0.025] p-6 backdrop-blur-xl"
         >
           {/* Input */}
           <div className="flex gap-3 mb-6">
@@ -671,7 +743,7 @@ function GeneratorDemo() {
             </button>
           </div>
 
-          {/* Loading state */}
+          {/* States */}
           <AnimatePresence mode="wait">
             {state === "loading" && (
               <motion.div
@@ -685,7 +757,7 @@ function GeneratorDemo() {
                   <motion.div
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ repeat: Infinity, duration: 1.5 }}
-                    className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center"
+                    className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0"
                   >
                     <Brain className="w-4 h-4 text-violet-400" />
                   </motion.div>
@@ -706,7 +778,7 @@ function GeneratorDemo() {
                       <motion.div
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.3 }}
-                        className="w-1.5 h-1.5 rounded-full bg-violet-400"
+                        className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0"
                       />
                       {step}
                     </motion.div>
@@ -778,7 +850,7 @@ function GeneratorDemo() {
                 >
                   <CheckCircle className="w-7 h-7 text-emerald-400" />
                 </motion.div>
-                <h3 className="text-lg font-bold text-white mb-1">Market is Live! 🎉</h3>
+                <h3 className="text-lg font-bold text-white mb-1">Market is Live!</h3>
                 <p className="text-sm text-white/50">
                   Your market is now open for trading on Polygon.
                 </p>
@@ -800,14 +872,12 @@ function GeneratorDemo() {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function TrendForgePage() {
   const [lang, setLang] = useState<"en" | "he">("en");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { scrollY } = useScroll();
-  const navBg = useTransform(scrollY, [0, 80], ["rgba(0,0,0,0)", "rgba(5,5,12,0.92)"]);
+  const navBg = useTransform(scrollY, [0, 80], ["rgba(0,0,0,0)", "rgba(3,3,10,0.94)"]);
 
   return (
     <div
       className="min-h-screen bg-[#03030a] text-white overflow-x-hidden"
-      style={{ fontFamily: "'Syne', 'IBM Plex Mono', system-ui, sans-serif" }}
     >
       {/* Global visual layers */}
       <NoiseBg />
@@ -815,7 +885,7 @@ export default function TrendForgePage() {
       {/* ── Navbar ── */}
       <motion.nav
         style={{ backgroundColor: navBg }}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-md"
+        className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] backdrop-blur-md"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center justify-between">
           {/* Logo */}
@@ -840,7 +910,7 @@ export default function TrendForgePage() {
               <Link
                 key={item.label}
                 href={item.href}
-                className="px-4 py-2 text-sm font-medium text-white/50 hover:text-white rounded-lg hover:bg-white/5 transition-all duration-200"
+                className="px-4 py-2 text-sm font-medium text-white/45 hover:text-white rounded-lg hover:bg-white/[0.05] transition-all duration-200"
               >
                 {item.label}
               </Link>
@@ -849,16 +919,14 @@ export default function TrendForgePage() {
 
           {/* Right actions */}
           <div className="flex items-center gap-3">
-            {/* Language toggle */}
             <button
               onClick={() => setLang(l => l === "en" ? "he" : "en")}
-              className="hidden md:flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/60 hover:text-white hover:border-white/20 transition-all"
+              className="hidden md:flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/55 hover:text-white hover:border-white/20 transition-all"
             >
               <Globe className="w-3.5 h-3.5" />
               {lang === "en" ? "עברית" : "English"}
             </button>
 
-            {/* Connect Wallet */}
             <Link href="/dashboard" className="flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-bold text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-500/60 hover:shadow-md hover:shadow-cyan-500/20 transition-all">
               <Wallet className="w-4 h-4" />
               <span className="hidden sm:inline">Connect Wallet</span>
@@ -870,7 +938,7 @@ export default function TrendForgePage() {
       {/* ── Hero ── */}
       <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 px-4 overflow-hidden">
         <GridLines />
-        <GlowOrb className="w-[800px] h-[800px] bg-cyan-600 -top-40 left-1/2 -translate-x-1/2" />
+        <GlowOrb className="w-[900px] h-[900px] bg-cyan-600 -top-40 left-1/2 -translate-x-1/2" />
         <GlowOrb className="w-[500px] h-[500px] bg-blue-800 bottom-0 right-0" />
         <GlowOrb className="w-[400px] h-[400px] bg-violet-700 bottom-20 left-0" />
 
@@ -881,7 +949,7 @@ export default function TrendForgePage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/8 px-4 py-2 text-sm font-semibold text-cyan-300"
+              className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/[0.08] px-4 py-2 text-sm font-semibold text-cyan-300"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
@@ -894,8 +962,7 @@ export default function TrendForgePage() {
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.1 }}
-              className="text-5xl md:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight mb-6"
-              style={{ fontFamily: "'Syne', sans-serif" }}
+              className="text-5xl md:text-6xl lg:text-7xl font-black leading-[1.04] tracking-tight mb-6"
             >
               <span className="text-white">Markets appear</span>
               <br />
@@ -910,7 +977,7 @@ export default function TrendForgePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-lg text-white/50 max-w-lg mb-8 leading-relaxed mx-auto lg:mx-0"
+              className="text-lg text-white/45 max-w-lg mb-8 leading-relaxed mx-auto lg:mx-0"
             >
               Claude AI turns X trends into live prediction markets instantly.
               Trade the future in seconds.
@@ -931,27 +998,32 @@ export default function TrendForgePage() {
               </Link>
               <Link
                 href="/markets"
-                className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-base font-bold text-white/80 hover:bg-white/10 hover:border-white/25 hover:-translate-y-0.5 transition-all duration-200"
+                className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.05] px-6 py-3.5 text-base font-bold text-white/75 hover:bg-white/10 hover:border-white/25 hover:-translate-y-0.5 transition-all duration-200"
               >
                 Browse Live Markets
               </Link>
             </motion.div>
 
-            {/* Stats mini-bar */}
+            {/* Stats — larger, with dividers */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.6 }}
-              className="mt-10 flex flex-wrap gap-6 justify-center lg:justify-start"
+              className="mt-12 flex flex-wrap gap-0 justify-center lg:justify-start"
             >
               {[
                 { value: "$2.4M", label: "Volume" },
                 { value: "18K+", label: "Traders" },
                 { value: "340+", label: "Markets" },
-              ].map((s) => (
-                <div key={s.label} className="text-center lg:text-left">
-                  <p className="text-2xl font-black text-white">{s.value}</p>
-                  <p className="text-xs text-white/40 font-medium">{s.label}</p>
+              ].map((s, i) => (
+                <div key={s.label} className="flex items-center">
+                  {i > 0 && (
+                    <div className="w-px h-10 bg-white/10 mx-6" />
+                  )}
+                  <div className="text-center lg:text-left">
+                    <p className="text-3xl font-black text-white font-mono tracking-tight tabular-nums leading-none mb-1">{s.value}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-white/30">{s.label}</p>
+                  </div>
                 </div>
               ))}
             </motion.div>
@@ -984,24 +1056,20 @@ export default function TrendForgePage() {
         </motion.div>
       </section>
 
-      {/* ── Trust Bar ── */}
-      <div className="relative border-y border-white/5 bg-white/[0.015] py-4 overflow-hidden">
-        <div className="mx-auto max-w-7xl px-4">
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-12">
-            {[
-              { icon: DollarSign, text: "$2.4M Traded" },
-              { icon: Users, text: "18K Active Traders" },
-              { icon: Cpu, text: "Backed by Claude AI" },
-              { icon: Globe, text: "Hebrew + English" },
-              { icon: Zap, text: "Polygon Network" },
-              { icon: Star, text: "Community Governed" },
-            ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-2 text-sm font-semibold text-white/40">
-                <Icon className="w-4 h-4 text-cyan-500/60" />
-                {text}
-              </div>
-            ))}
-          </div>
+      {/* ── Trust Bar — scrolling ticker ── */}
+      <div className="relative border-y border-white/[0.06] bg-white/[0.012] py-3.5 overflow-hidden">
+        {/* Fade edges */}
+        <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-[#03030a] to-transparent z-10 pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-[#03030a] to-transparent z-10 pointer-events-none" />
+        {/* Scrolling track */}
+        <div className="animate-ticker flex whitespace-nowrap">
+          {[...TRUST_ITEMS, ...TRUST_ITEMS].map(({ icon: Icon, text }, i) => (
+            <div key={i} className="inline-flex items-center gap-2 px-8 text-sm font-semibold text-white/40">
+              <span className="w-1 h-1 rounded-full bg-cyan-500/50 shrink-0" />
+              <Icon className="w-4 h-4 text-cyan-500/55 shrink-0" />
+              {text}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1011,7 +1079,7 @@ export default function TrendForgePage() {
       </div>
 
       {/* ── How It Works ── */}
-      <section className="relative py-28 px-4 overflow-hidden">
+      <section className="relative py-24 px-4 overflow-hidden">
         <GlowOrb className="w-[500px] h-[500px] bg-indigo-700 right-0 top-1/2 -translate-y-1/2" />
 
         <div className="relative z-10 mx-auto max-w-6xl">
@@ -1021,11 +1089,11 @@ export default function TrendForgePage() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm font-semibold text-white/50">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-sm font-semibold text-white/45">
               <Zap className="w-4 h-4 text-yellow-400" />
               Simple as 1-2-3-4
             </div>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white" style={{ fontFamily: "'Syne', sans-serif" }}>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white">
               From Trend to{" "}
               <span className="bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
                 Trade
@@ -1043,7 +1111,7 @@ export default function TrendForgePage() {
       </section>
 
       {/* ── Trending Markets ── */}
-      <section id="markets" className="relative py-28 px-4">
+      <section id="markets" className="relative py-24 px-4">
         <GlowOrb className="w-[600px] h-[600px] bg-cyan-900 left-0 top-1/2 -translate-y-1/2" />
 
         <div className="relative z-10 mx-auto max-w-6xl">
@@ -1058,7 +1126,7 @@ export default function TrendForgePage() {
                 <TrendingUp className="w-4 h-4" />
                 Trending Now
               </div>
-              <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white" style={{ fontFamily: "'Syne', sans-serif" }}>
+              <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white">
                 Live AI-Forged Markets
               </h2>
             </div>
@@ -1086,11 +1154,11 @@ export default function TrendForgePage() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm font-semibold text-white/50">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-sm font-semibold text-white/45">
               <Layers className="w-4 h-4 text-violet-400" />
               Platform Features
             </div>
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white" style={{ fontFamily: "'Syne', sans-serif" }}>
+            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white">
               Everything you need to{" "}
               <span className="bg-gradient-to-r from-violet-400 to-pink-400 bg-clip-text text-transparent">
                 trade the future
@@ -1107,10 +1175,10 @@ export default function TrendForgePage() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="relative py-32 px-4 overflow-hidden">
+      <section className="relative py-40 px-4 overflow-hidden">
         <div className="absolute inset-0">
           <GridLines />
-          <GlowOrb className="w-[700px] h-[700px] bg-cyan-700 left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2" />
+          <GlowOrb className="w-[800px] h-[800px] bg-cyan-700 left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2" />
         </div>
 
         <div className="relative z-10 mx-auto max-w-3xl text-center">
@@ -1120,44 +1188,51 @@ export default function TrendForgePage() {
             viewport={{ once: true }}
             transition={{ duration: 0.7 }}
           >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300">
-              <Sparkles className="w-4 h-4" />
-              Start trading in 60 seconds
+            {/* Card wrapper */}
+            <div className="relative rounded-3xl border border-white/10 bg-white/[0.025] p-12 backdrop-blur-xl shadow-2xl shadow-black/40">
+              {/* Top edge highlight */}
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent rounded-t-3xl" />
+              {/* Inner glow */}
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-cyan-500/[0.04] to-transparent pointer-events-none" />
+
+              <div className="relative">
+                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-300">
+                  <Sparkles className="w-4 h-4" />
+                  Start trading in 60 seconds
+                </div>
+
+                <h2 className="text-5xl md:text-6xl font-black leading-tight tracking-tight mb-6 text-white">
+                  Ready to trade markets
+                  <br />
+                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-400 bg-clip-text text-transparent">
+                    that don't exist yet?
+                  </span>
+                </h2>
+
+                <p className="text-lg text-white/40 mb-10 max-w-xl mx-auto leading-relaxed">
+                  Connect your wallet. The AI does the rest. Trade on markets born from
+                  the freshest trends — before anyone else even knows they're tradeable.
+                </p>
+
+                <div className="flex flex-wrap gap-4 justify-center">
+                  <Link href="/dashboard" className="group flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-8 py-4 text-lg font-black text-white shadow-2xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/50 hover:-translate-y-1 transition-all duration-300">
+                    <Wallet className="w-5 h-5" />
+                    Connect Wallet & Start
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                </div>
+
+                <p className="mt-6 text-xs text-white/25 font-mono">
+                  No KYC required for trades under $500 · Polygon network · USDC
+                </p>
+              </div>
             </div>
-
-            <h2
-              className="text-5xl md:text-6xl lg:text-7xl font-black leading-tight tracking-tight mb-6"
-              style={{ fontFamily: "'Syne', sans-serif" }}
-            >
-              Ready to trade markets
-              <br />
-              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-400 bg-clip-text text-transparent">
-                that don't exist yet?
-              </span>
-            </h2>
-
-            <p className="text-lg text-white/45 mb-10 max-w-xl mx-auto leading-relaxed">
-              Connect your wallet. The AI does the rest. Trade on markets born from
-              the freshest trends — before anyone else even knows they're tradeable.
-            </p>
-
-            <div className="flex flex-wrap gap-4 justify-center">
-              <Link href="/dashboard" className="group flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-8 py-4 text-lg font-black text-white shadow-2xl shadow-cyan-500/30 hover:from-cyan-400 hover:to-blue-500 hover:shadow-cyan-500/50 hover:-translate-y-1 transition-all duration-300">
-                <Wallet className="w-5 h-5" />
-                Connect Wallet & Start
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-              </Link>
-            </div>
-
-            <p className="mt-5 text-xs text-white/25">
-              No KYC required for trades under $500 · Polygon network · USDC
-            </p>
           </motion.div>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/5 bg-white/[0.01] py-12 px-4">
+      <footer className="border-t border-white/[0.05] bg-white/[0.008] py-12 px-4">
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             <div className="col-span-2 md:col-span-1">
@@ -1169,7 +1244,7 @@ export default function TrendForgePage() {
                   Trend<span className="text-cyan-400">Forge</span>
                 </span>
               </div>
-              <p className="text-xs text-white/35 leading-relaxed max-w-[200px]">
+              <p className="text-xs text-white/30 leading-relaxed max-w-[200px]">
                 AI-powered prediction markets born from real-time X trends. Trade the future.
               </p>
             </div>
@@ -1204,13 +1279,13 @@ export default function TrendForgePage() {
               },
             ].map((col) => (
               <div key={col.title}>
-                <h4 className="text-xs font-bold uppercase tracking-widest text-white/30 mb-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/25 mb-4">
                   {col.title}
                 </h4>
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
                     <li key={link.label}>
-                      <Link href={link.href} className="text-sm text-white/45 hover:text-white transition-colors">
+                      <Link href={link.href} className="text-sm text-white/40 hover:text-white/80 transition-colors">
                         {link.label}
                       </Link>
                     </li>
@@ -1220,8 +1295,8 @@ export default function TrendForgePage() {
             ))}
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/5 pt-6">
-            <p className="text-xs text-white/25">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/[0.05] pt-6">
+            <p className="text-xs text-white/25 font-mono">
               © 2026 TrendForge. Built on Polygon. Powered by Claude AI.
             </p>
             <div className="flex items-center gap-4">
