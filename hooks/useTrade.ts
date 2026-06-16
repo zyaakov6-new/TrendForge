@@ -91,6 +91,8 @@ export interface TradeState {
   orderId:       string | null;
   orderStatus:   "matched" | "delayed" | "unmatched" | null;
   sharesReceived:number;
+  /** Real on-chain tx hash for fillOrder path; undefined on CLOB-API path */
+  txHash:        `0x${string}` | undefined;
   error:         string | null;
   reset:         () => void;
 }
@@ -342,6 +344,7 @@ export function useTrade(
     orderId,
     orderStatus,
     sharesReceived,
+    txHash:        fillTxHash,
     error,
     reset: () => {
       setStep("idle");

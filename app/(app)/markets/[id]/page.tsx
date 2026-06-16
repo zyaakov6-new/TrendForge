@@ -871,7 +871,19 @@ function TradingPanel({
     : trade.step !== "idle"  ? "loading"
     : "idle";
 
-  const txHash = "0x3f4a9c2e8b1d7f56a3c4e901b2d8f374e6a5c1b9d2e7f8a0c3b5d6e1f2a4b7c";
+  // Real on-chain tx hash (only present for fillOrder path)
+  const txHash = trade.txHash;
+
+  // Maker order driving this trade (for disclosure)
+  const activeMakerOrder = side === "YES" ? yesMakerOrder : noMakerOrder;
+  // Spread = how much the maker charges over fair price. A SELL order with
+  // makerAmount (shares) and takerAmount (USDC) implies price = takerAmount/makerAmount.
+  // Fair = current displayed yesPrice/100 for YES, (1 - yesPrice/100) for NO.
+  const makerPrice = activeMakerOrder
+    ? Number(activeMakerOrder.takerAmount) / Number(activeMakerOrder.makerAmount)
+    : null;
+  const fairPrice = side === "YES" ? market.yesPrice / 100 : (100 - market.yesPrice) / 100;
+  const spreadCents = makerPrice !== null ? (makerPrice - fairPrice) * 100 : null;
 
   // Step 1: open confirm dialog
   const handleTrade = () => {
@@ -959,15 +971,21 @@ function TradingPanel({
               Bought <span className="text-white font-bold">{(trade.sharesReceived || shares).toFixed(1)} {side}</span> shares for <span className="text-white font-bold">${amount} USDC</span>
             </p>
             <p className="text-xs text-white/25 font-mono mb-1">
-              {trade.orderStatus === "matched" ? "Matched instantly on CLOB" : "Order placed - Polygon confirmation pending"}
+              {txHash ? "Filled on Polygon" : trade.orderStatus === "matched" ? "Matched instantly on CLOB" : "Order placed — confirmation pending"}
             </p>
-            <button
-              onClick={() => navigator.clipboard.writeText(txHash).catch(() => {})}
-              className="flex items-center gap-1 text-xs text-cyan-400/70 hover:text-cyan-400 font-mono mb-5 transition-colors"
-            >
-              <Copy className="w-3 h-3" />
-              {txHash.slice(0, 20)}…
-            </button>
+            {txHash ? (
+              <a
+                href={`https://polygonscan.com/tx/${txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-cyan-400/70 hover:text-cyan-400 font-mono mb-5 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                {txHash.slice(0, 10)}…{txHash.slice(-6)}
+              </a>
+            ) : (
+              <div className="mb-5" />
+            )}
             <button
               onClick={handleReset}
               className="rounded-xl border border-white/10 bg-white/4 px-5 py-2 text-sm font-semibold text-white/50 hover:text-white transition-all"
@@ -1112,28 +1130,61 @@ function TradingPanel({
           </motion.button>
         )}
 
-        {/* No-liquidity notice for AI markets that haven't been seeded yet */}
-        {conditionId && !hasLiquidity && (
-          <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-400/80">
-            Liquidity being seeded — trading opens shortly.
+        {/* Counterparty disclosure — only when a maker order exists */}
+        {activeMakerOrder && (
+          <div className="mb-3 rounded-xl border border-violet-500/15 bg-violet-500/[0.04] px-3 py-2.5 flex items-center gap-2.5 text-[11px]">
+            <Shield className="w-3 h-3 text-violet-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-white/55 leading-tight">
+                Counterparty:&nbsp;
+                <span className="text-violet-300 font-semibold">TrendForge market maker</span>
+              </p>
+              <a
+                href={`https://polygonscan.com/address/${activeMakerOrder.maker}`}
+                target="_blank" rel="noopener noreferrer"
+                className="text-white/25 font-mono hover:text-white/50 transition-colors inline-flex items-center gap-1 mt-0.5"
+                onClick={e => e.stopPropagation()}
+              >
+                {activeMakerOrder.maker.slice(0, 6)}…{activeMakerOrder.maker.slice(-4)}
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            </div>
+            {spreadCents !== null && spreadCents > 0 && (
+              <div className="text-right">
+                <p className="text-[9px] uppercase tracking-wider text-white/30 font-bold">Spread</p>
+                <p className="text-violet-300 font-mono font-bold">+{spreadCents.toFixed(1)}¢</p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Place Trade button */}
+        {/* Place Trade button — or "awaiting market maker" empty state */}
         {isConnected ? (
-          <motion.button
-            onClick={handleTrade}
-            disabled={tradeState !== "idle" || trade.needsApproval || (!!conditionId && !hasLiquidity)}
-            whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
-            whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
-            className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${
-              side === "YES"
-                ? "bg-emerald-500 text-white hover:bg-emerald-400"
-                : "bg-rose-500 text-white hover:bg-rose-400"
-            } disabled:opacity-50`}
-          >
-            Buy {side} - ${amount} USDC
-          </motion.button>
+          conditionId && !hasLiquidity ? (
+            <div className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-5 text-center">
+              <div className="inline-flex w-9 h-9 rounded-xl bg-white/4 items-center justify-center mb-3">
+                <Clock className="w-4 h-4 text-white/40" />
+              </div>
+              <p className="text-sm font-semibold text-white/70 mb-1">Awaiting market maker</p>
+              <p className="text-[11px] text-white/35 leading-relaxed max-w-xs mx-auto">
+                This market is approved and on-chain. The market maker hasn't seeded liquidity yet — check back in a few minutes.
+              </p>
+            </div>
+          ) : (
+            <motion.button
+              onClick={handleTrade}
+              disabled={tradeState !== "idle" || trade.needsApproval}
+              whileHover={{ scale: tradeState === "idle" ? 1.01 : 1 }}
+              whileTap={{ scale: tradeState === "idle" ? 0.99 : 1 }}
+              className={`w-full py-4 rounded-xl text-base font-black transition-all duration-200 ${
+                side === "YES"
+                  ? "bg-emerald-500 text-white hover:bg-emerald-400"
+                  : "bg-rose-500 text-white hover:bg-rose-400"
+              } disabled:opacity-50`}
+            >
+              Buy {side} — ${amount} USDC
+            </motion.button>
+          )
         ) : (
           <ConnectWalletButton />
         )}

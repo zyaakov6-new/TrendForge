@@ -183,14 +183,6 @@ function SkeletonRow() {
   );
 }
 
-// ─── Static resolved history ──────────────────────────────────────────────────
-
-const RESOLVED = [
-  { question: "Will USD/ILS breach 3.90 in March 2026?",                       side: "YES" as const, outcome: "YES", pnl: 142.0,  date: "Mar 28, 2026" },
-  { question: "Will Ethereum gas fees drop below 5 gwei in Q1 2026?",          side: "NO"  as const, outcome: "NO",  pnl: 88.5,   date: "Mar 31, 2026" },
-  { question: "Will Maccabi Haifa finish top-4 in Israeli Premier League?",    side: "YES" as const, outcome: "NO",  pnl: -50.0,  date: "Apr 5, 2026"  },
-];
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PortfolioPage() {
@@ -198,14 +190,20 @@ export default function PortfolioPage() {
   const { address, truncatedAddress } = useWallet();
   const { positions, isLoading, isOnChain, totalValue, totalPnL, totalPnLPct } = usePortfolio(address);
 
-  const openPositions = positions.filter(p => p.status === "open");
-  const realizedPnL   = RESOLVED.reduce((s, r) => s + r.pnl, 0);
+  const openPositions     = positions.filter(p => p.status === "open");
+  const resolvedPositions = positions.filter(p => p.status !== "open");
+  // Realized PnL = sum of (final - entry) * shares for resolved markets.
+  // currentPrice is 1 for winners, 0 for losers (see useOnChainPositions).
+  const realizedPnL       = resolvedPositions.reduce(
+    (s, p) => s + p.shares * (p.currentPrice - p.entryPrice),
+    0
+  );
 
   const STATS = [
     {
       label: "Portfolio Value",
       value: `$${totalValue.toFixed(2)}`,
-      sub:   isOnChain ? "on-chain positions" : "estimated value",
+      sub:   "on-chain value",
       positive: null as boolean | null,
       icon: DollarSign, border: "border-cyan-500/15", iconColor: "text-cyan-400",
     },
@@ -221,7 +219,7 @@ export default function PortfolioPage() {
     {
       label: "Open Positions",
       value: isLoading ? "-" : String(openPositions.length),
-      sub:   isOnChain ? "from order book" : "sample positions",
+      sub:   "ERC-1155 balances",
       positive: null as boolean | null,
       icon: Activity, border: "border-violet-500/15", iconColor: "text-violet-400",
     },
@@ -266,7 +264,7 @@ export default function PortfolioPage() {
               onClick={() => setTab(t)}
               className={`relative px-4 py-2.5 text-sm font-semibold capitalize transition-colors ${tab === t ? "text-white" : "text-white/40 hover:text-white/70"}`}
             >
-              {t === "open" ? `Open Positions (${isLoading ? "..." : openPositions.length})` : `Resolved (${RESOLVED.length})`}
+              {t === "open" ? `Open Positions (${isLoading ? "..." : openPositions.length})` : `Resolved (${resolvedPositions.length})`}
               {tab === t && <motion.div layoutId="tabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-400 rounded-full" />}
             </button>
           ))}
@@ -327,21 +325,29 @@ export default function PortfolioPage() {
         {/* Resolved positions */}
         {tab === "resolved" && (
           <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="space-y-3">
-            {RESOLVED.map((item, i) => {
-              const won = item.side === item.outcome;
+            {resolvedPositions.length === 0 ? (
+              <div className="rounded-2xl border border-white/6 bg-white/[0.02] py-16 text-center">
+                <CheckCircle className="w-8 h-8 text-white/15 mx-auto mb-3" />
+                <p className="text-sm text-white/35">No resolved positions yet.</p>
+                <p className="text-xs text-white/20 mt-1">Markets you trade will appear here after they settle.</p>
+              </div>
+            ) : resolvedPositions.map((pos, i) => {
+              const won  = pos.status === "resolved_yes" ? pos.side === "YES" : pos.side === "NO";
+              const pnl  = pos.shares * (pos.currentPrice - pos.entryPrice);
+              const outcome = pos.status === "resolved_yes" ? "YES" : "NO";
               return (
-                <motion.div key={i} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }} className="rounded-2xl border border-white/6 bg-white/[0.025] p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <motion.div key={pos.id} initial={{ opacity: 0, x: -14 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07 }} className="rounded-2xl border border-white/6 bg-white/[0.025] p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white/80 mb-1 line-clamp-1">{item.question}</p>
+                    <p className="text-sm font-semibold text-white/80 mb-1 line-clamp-1">{pos.question}</p>
                     <div className="flex items-center gap-2 text-xs">
-                      <span className={`rounded-full px-2.5 py-0.5 font-bold border ${item.side === "YES" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>{item.side}</span>
-                      <span className={`rounded-full px-2.5 py-0.5 font-bold border ${won ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" : "bg-rose-500/15 border-rose-500/30 text-rose-400"}`}>Resolved: {item.outcome}</span>
-                      <span className="text-white/25 font-mono">{item.date}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 font-bold border ${pos.side === "YES" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>{pos.side}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 font-bold border ${won ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" : "bg-rose-500/15 border-rose-500/30 text-rose-400"}`}>Resolved: {outcome}</span>
+                      <span className="text-white/25 font-mono">{pos.resolveDate}</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-base font-black font-mono ${item.pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                      {item.pnl >= 0 ? "+" : ""}${Math.abs(item.pnl).toFixed(2)}
+                    <p className={`text-base font-black font-mono ${pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {pnl >= 0 ? "+" : ""}${Math.abs(pnl).toFixed(2)}
                     </p>
                     <p className="text-xs text-white/30">{won ? "Won" : "Lost"}</p>
                   </div>
@@ -349,15 +355,17 @@ export default function PortfolioPage() {
               );
             })}
 
-            <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-5 py-4 flex items-center justify-between">
-              <span className="text-sm text-white/40 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-cyan-400" />
-                Total Realized PnL
-              </span>
-              <span className={`text-lg font-black font-mono ${realizedPnL >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                {realizedPnL >= 0 ? "+" : ""}${Math.abs(realizedPnL).toFixed(2)} USDC
-              </span>
-            </div>
+            {resolvedPositions.length > 0 && (
+              <div className="rounded-2xl border border-white/6 bg-white/[0.015] px-5 py-4 flex items-center justify-between">
+                <span className="text-sm text-white/40 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-cyan-400" />
+                  Total Realized PnL
+                </span>
+                <span className={`text-lg font-black font-mono ${realizedPnL >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {realizedPnL >= 0 ? "+" : ""}${Math.abs(realizedPnL).toFixed(2)} USDC
+                </span>
+              </div>
+            )}
           </motion.div>
         )}
 
